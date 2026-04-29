@@ -1,0 +1,60 @@
+{
+  "name": "@entros/verify",
+  "version": "0.1.0",
+  "description": "Drop-in React component for Entros verification — popup-pattern, wallet-connected. The captcha-grade primitive integrators embed to send their users into the Entros verify flow.",
+  "license": "MIT",
+  "homepage": "https://entros.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/entros-protocol/entros-verify.git"
+  },
+  "bugs": {
+    "url": "https://github.com/entros-protocol/entros-verify/issues"
+  },
+  "keywords": [
+    "entros",
+    "solana",
+    "proof-of-personhood",
+    "verification",
+    "react",
+    "captcha"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "verify-publish-contents": "node scripts/verify-publish-contents.mjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run verify-publish-contents && npm run build"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^25.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^6.0.2",
+    "vitest": "^3.0.0"
+  }
+}
