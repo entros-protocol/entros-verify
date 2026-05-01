@@ -115,6 +115,11 @@ describe("openVerifyPopup", () => {
       cluster: "devnet",
     });
     expect(onError).not.toHaveBeenCalled();
+    // Popup owns its own close on the verified path so its recognition
+    // surface renders before the window dies. Parent does not force-close
+    // synchronously; the defensive fallback fires after 5s.
+    expect(popup.close).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(30000);
     expect(popup.close).toHaveBeenCalled();
   });
 
@@ -134,6 +139,11 @@ describe("openVerifyPopup", () => {
 
     expect(onError).toHaveBeenCalledWith({ reason: "wallet_rejected" });
     expect(onVerified).not.toHaveBeenCalled();
+    // Popup-emitted errors are treated like verified: popup owns the close
+    // so its `PopupFailure` surface can render. Parent fallback fires at 5s.
+    expect(popup.close).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(30000);
+    expect(popup.close).toHaveBeenCalled();
   });
 
   it("fires onProgress on heartbeat", () => {
