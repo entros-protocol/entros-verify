@@ -43,6 +43,17 @@ const POPUP_CLOSED_POLL_MS = 500;
  */
 const POPUP_CLOSED_GRACE_MS = 1500;
 
+/**
+ * After a popup-emitted outcome (`entros/verified` or `entros/error`),
+ * the popup owns its own close — its success / failure surface renders
+ * and either self-closes or waits for explicit user action (e.g., the
+ * baseline-stale recovery surface). The parent only force-closes after
+ * this defensive fallback in case the popup fails to close itself.
+ * Generous enough to allow interactive failure surfaces to be read and
+ * acted on; short enough that an abandoned popup eventually dies.
+ */
+const POPUP_OWNED_FALLBACK_CLOSE_MS = 30_000;
+
 export interface OpenPopupOptions {
   baseOrigin: string;
   integratorKey: string;
@@ -121,7 +132,7 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
   let timeoutTimerId: ReturnType<typeof setTimeout> | null = null;
   let popupClosedAtMs: number | null = null;
 
-  function cleanup(): void {
+  function clearListenersAndTimers(): void {
     window.removeEventListener("message", onMessage);
     if (pollTimerId !== null) {
       clearInterval(pollTimerId);
@@ -131,6 +142,9 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
       clearTimeout(timeoutTimerId);
       timeoutTimerId = null;
     }
+  }
+
+  function forceClosePopup(): void {
     if (popup && !popup.closed) {
       try {
         popup.close();
@@ -144,14 +158,38 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
   function settleVerified(result: EntrosVerifyResult): void {
     if (settled) return;
     settled = true;
-    cleanup();
+    // The popup owns its own close on the verified path so its
+    // recognition surface (`Verified.` checkmark) is visible to the user
+    // before the window dies. Parent only force-closes as a defensive
+    // fallback in case the popup fails to close itself.
+    clearListenersAndTimers();
+    setTimeout(forceClosePopup, POPUP_OWNED_FALLBACK_CLOSE_MS);
     opts.onVerified(result);
   }
 
-  function settleError(reason: EntrosVerifyErrorReason): void {
+  /**
+   * @param forceImmediateClose
+   *   - false (default) — error came from a popup-emitted `entros/error`
+   *     message; the popup is still alive and rendering its own
+   *     `PopupFailure` (auto-close) or interactive recovery surface
+   *     (e.g., baseline-stale). Parent waits the fallback window before
+   *     force-closing so the user sees the failure category.
+   *   - true — error came from the parent (timeout, user cancel, or
+   *     polling detected the popup already closed). No popup-side
+   *     surface to preserve; force-close immediately.
+   */
+  function settleError(
+    reason: EntrosVerifyErrorReason,
+    forceImmediateClose = false,
+  ): void {
     if (settled) return;
     settled = true;
-    cleanup();
+    clearListenersAndTimers();
+    if (forceImmediateClose) {
+      forceClosePopup();
+    } else {
+      setTimeout(forceClosePopup, POPUP_OWNED_FALLBACK_CLOSE_MS);
+    }
     opts.onError({ reason });
   }
 
@@ -210,7 +248,7 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
         return;
       }
       if (Date.now() - popupClosedAtMs >= POPUP_CLOSED_GRACE_MS) {
-        settleError("user_canceled");
+        settleError("user_canceled", true);
       }
     } else {
       popupClosedAtMs = null;
@@ -218,7 +256,7 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
   }
 
   function onTimeout(): void {
-    settleError("timeout");
+    settleError("timeout", true);
   }
 
   window.addEventListener("message", onMessage);
@@ -226,6 +264,6 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
   timeoutTimerId = setTimeout(onTimeout, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
   return {
-    cancel: () => settleError("user_canceled"),
+    cancel: () => settleError("user_canceled", true),
   };
 }
