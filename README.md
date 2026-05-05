@@ -75,7 +75,7 @@ Specific server-side rejection signals are deliberately not surfaced to the clie
 
 - Devnet only. Mainnet support lands in v2.
 - Hardcoded integrator allowlist on the entros.io side. Self-serve integrator onboarding lands in v2.
-- Mobile browsers may open the popup as a new tab rather than a windowed popup. Mobile-Wallet-Adapter-aware mobile flow lands in v1.5.
+- Mobile browsers may open the popup as a new tab rather than a windowed popup. Native mobile support via Mobile Wallet Adapter is not yet implemented in this component; see [`entros-mobile`](https://github.com/entros-protocol/entros-mobile) for the native Solana Mobile dApp.
 
 ## Production-readiness
 
