@@ -33,7 +33,7 @@ interface EntrosVerifyResult {
 }
 ```
 
-Read the on-chain attestation from any Solana program or client. No API keys, no escrow, no per-call billing.
+The payload comes from a verification that just completed, so it describes someone present. Any Solana program or client can read the attestation afterwards, with no API keys, no escrow and no per-call billing.
 
 ## Full API
 
@@ -41,7 +41,7 @@ Read the on-chain attestation from any Solana program or client. No API keys, no
 <EntrosVerify
   integratorKey="jupiter"          // required, registered with Entros
   cluster="devnet"                  // "devnet" | "mainnet-beta", default "devnet"
-  minTrustScore={200}               // optional gate
+  minTrustScore={200}               // optional floor on verification history
   popupWidth={480}                  // CSS px, default 480
   popupHeight={720}                 // CSS px, default 720
   timeoutMs={5 * 60 * 1000}         // 5 min default
