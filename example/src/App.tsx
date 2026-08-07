@@ -128,7 +128,7 @@ export function App() {
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Trigger</h2>
         <EntrosVerify
           baseOrigin={POPUP_BASE_ORIGIN}
-          integratorKey="jupiter"
+          integratorKey="demo-integrator"
           cluster="devnet"
           onVerified={handleVerified}
           onError={handleError}

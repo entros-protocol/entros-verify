@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@entros/verify.svg)](https://www.npmjs.com/package/@entros/verify)
 
-Drop-in React component for Entros verification on Solana. Click → popup window opens to entros.io → user completes wallet-connected verification → component fires `onVerified` with the on-chain attestation reference.
+React component for Entros verification on Solana devnet. It opens the Entros popup and reports a completed wallet-connected verification.
 
 Source: [github.com/entros-protocol/entros-verify](https://github.com/entros-protocol/entros-verify) · Hosted by [entros.io](https://entros.io).
 
@@ -26,21 +26,23 @@ import { EntrosVerify } from "@entros/verify";
 ```ts
 interface EntrosVerifyResult {
   walletPubkey: string;        // base58 Solana pubkey
-  attestationPda: string;      // base58 SAS attestation PDA
+  attestationPda: string;      // derived SAS account address
   txSig: string;               // base58 verification tx signature
   trustScore: number;          // current Trust Score (0–10000)
-  cluster: "devnet" | "mainnet-beta";
+  cluster: "devnet";
 }
 ```
 
-The payload comes from a verification that just completed, so it describes someone present. Any Solana program or client can read the attestation afterwards, with no API keys, no escrow and no per-call billing.
+The callback reports a completed Entros verification and its derived attestation address. It does not independently prove physical presence.
+
+SAS issuance is best-effort after wallet-connected verification. Check that the returned address contains an attestation account before relying on it.
 
 ## Full API
 
 ```tsx
 <EntrosVerify
-  integratorKey="jupiter"          // required, registered with Entros
-  cluster="devnet"                  // "devnet" | "mainnet-beta", default "devnet"
+  integratorKey="your-integrator-key" // required
+  cluster="devnet"                    // only supported cluster
   minTrustScore={200}               // optional floor on verification history
   popupWidth={480}                  // CSS px, default 480
   popupHeight={720}                 // CSS px, default 720
@@ -73,11 +75,11 @@ Specific server-side rejection signals are deliberately not surfaced to the clie
 
 ## v1 limitations
 
-- Devnet only. Mainnet support lands in v2.
-- Hardcoded integrator allowlist on the entros.io side. Self-serve integrator onboarding lands in v2.
+- Devnet only. Mainnet support is planned after the protocol clears its release gates.
+- Hardcoded integrator allowlist on the entros.io side. Self-serve integrator onboarding is planned.
 - Mobile browsers may open the popup as a new tab rather than a windowed popup. Native mobile support via Mobile Wallet Adapter is not yet implemented in this component; see [`entros-mobile`](https://github.com/entros-protocol/entros-mobile) for the native Solana Mobile dApp.
 
-## Production-readiness
+## Integration safeguards
 
 - Origin gate on every postMessage (`event.origin === "https://entros.io"`)
 - Replay protection via per-popup `request_id`

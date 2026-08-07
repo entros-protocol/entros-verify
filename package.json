@@ -1,7 +1,7 @@
 {
   "name": "@entros/verify",
   "version": "0.1.0",
-  "description": "Drop-in React component for Entros verification — popup-pattern, wallet-connected. The captcha-grade primitive integrators embed to send their users into the Entros verify flow.",
+  "description": "React popup component for wallet-connected Entros verification on Solana devnet",
   "license": "MIT",
   "homepage": "https://entros.io",
   "repository": {

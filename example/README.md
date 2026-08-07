@@ -24,7 +24,7 @@ and walk through the flow in the popup window.
 
 ## What it does
 
-- Renders `<EntrosVerify baseOrigin="http://localhost:3000" integratorKey="jupiter" cluster="devnet" />`
+- Renders `<EntrosVerify baseOrigin="http://localhost:3000" integratorKey="demo-integrator" cluster="devnet" />`
 - Logs every `onVerified` / `onError` / `onProgress` callback into a streaming event log
 - On success, polls the returned `attestation_pda` on devnet for up to 60 seconds and reports when the SAS attestation account appears
 - Links the returned `tx_sig` to Solana Explorer
@@ -32,5 +32,5 @@ and walk through the flow in the popup window.
 ## Notes
 
 - `baseOrigin` is the package's documented internal override for localhost development. Production consumers omit it; the package defaults to `https://entros.io`.
-- The `integrator=jupiter` value is just a registered key; the popup host accepts any localhost origin in dev mode regardless of which key you pass.
+- `demo-integrator` is a neutral local fixture. Production integrators receive their own approved key.
 - This folder is gitignored at the dist + node_modules level; the source is committed as integrator reference.
