@@ -3,8 +3,8 @@ import { buildPopupUrl, generateRequestId } from "../src/url";
 
 const baseOpts = {
   baseOrigin: "https://entros.io",
-  integratorKey: "jupiter",
-  parentOrigin: "https://jup.ag",
+  integratorKey: "demo-integrator",
+  parentOrigin: "https://example.com",
   cluster: "devnet" as const,
   requestId: "01J9XMR73K8ETBQXP4FZKCG7AK",
 };
@@ -14,8 +14,8 @@ describe("buildPopupUrl", () => {
     const url = new URL(buildPopupUrl(baseOpts));
     expect(url.origin).toBe("https://entros.io");
     expect(url.pathname).toBe("/embed/verify-popup");
-    expect(url.searchParams.get("integrator")).toBe("jupiter");
-    expect(url.searchParams.get("parent_origin")).toBe("https://jup.ag");
+    expect(url.searchParams.get("integrator")).toBe("demo-integrator");
+    expect(url.searchParams.get("parent_origin")).toBe("https://example.com");
     expect(url.searchParams.get("cluster")).toBe("devnet");
     expect(url.searchParams.get("request_id")).toBe("01J9XMR73K8ETBQXP4FZKCG7AK");
     expect(url.searchParams.get("min_trust_score")).toBe(null);
@@ -27,10 +27,10 @@ describe("buildPopupUrl", () => {
   });
 
   it("rejects integrator keys with invalid characters", () => {
-    expect(() => buildPopupUrl({ ...baseOpts, integratorKey: "Jupiter" })).toThrow(
+    expect(() => buildPopupUrl({ ...baseOpts, integratorKey: "Demo Integrator" })).toThrow(
       /Invalid integratorKey/,
     );
-    expect(() => buildPopupUrl({ ...baseOpts, integratorKey: "jup ag" })).toThrow(
+    expect(() => buildPopupUrl({ ...baseOpts, integratorKey: "demo integrator" })).toThrow(
       /Invalid integratorKey/,
     );
     expect(() => buildPopupUrl({ ...baseOpts, integratorKey: "" })).toThrow(
@@ -47,19 +47,19 @@ describe("buildPopupUrl", () => {
 
   it("accepts hyphens and underscores in integrator keys", () => {
     expect(() =>
-      buildPopupUrl({ ...baseOpts, integratorKey: "jup_ag-v2" }),
+      buildPopupUrl({ ...baseOpts, integratorKey: "demo_key-v2" }),
     ).not.toThrow();
   });
 
   it("rejects parent origins without scheme", () => {
-    expect(() => buildPopupUrl({ ...baseOpts, parentOrigin: "jup.ag" })).toThrow(
+    expect(() => buildPopupUrl({ ...baseOpts, parentOrigin: "example.com" })).toThrow(
       /Invalid parentOrigin/,
     );
   });
 
   it("rejects parent origins with paths", () => {
     expect(() =>
-      buildPopupUrl({ ...baseOpts, parentOrigin: "https://jup.ag/path" }),
+      buildPopupUrl({ ...baseOpts, parentOrigin: "https://example.com/path" }),
     ).toThrow(/Invalid parentOrigin/);
   });
 
@@ -78,9 +78,13 @@ describe("buildPopupUrl", () => {
     );
   });
 
-  it("works for mainnet-beta cluster (v2 surface)", () => {
-    const url = new URL(buildPopupUrl({ ...baseOpts, cluster: "mainnet-beta" }));
-    expect(url.searchParams.get("cluster")).toBe("mainnet-beta");
+  it("rejects unsupported clusters at runtime", () => {
+    expect(() =>
+      buildPopupUrl({
+        ...baseOpts,
+        cluster: "mainnet-beta" as unknown as "devnet",
+      }),
+    ).toThrow(/supports devnet only/);
   });
 
   it("respects baseOrigin override (E2E testing)", () => {

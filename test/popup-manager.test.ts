@@ -18,7 +18,7 @@ function makePopup(): FakePopup {
 
 const baseOpts = {
   baseOrigin: "https://entros.io",
-  integratorKey: "jupiter",
+  integratorKey: "demo-integrator",
   cluster: "devnet" as const,
   popupWidth: 480,
   popupHeight: 720,
@@ -82,7 +82,7 @@ describe("openVerifyPopup", () => {
     const url = new URL(String(openSpy.mock.calls[0]?.[0]));
     expect(url.origin).toBe("https://entros.io");
     expect(url.pathname).toBe("/embed/verify-popup");
-    expect(url.searchParams.get("integrator")).toBe("jupiter");
+    expect(url.searchParams.get("integrator")).toBe("demo-integrator");
   });
 
   it("fires onVerified when popup posts entros/verified", () => {

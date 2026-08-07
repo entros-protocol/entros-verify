@@ -55,7 +55,7 @@ const ENTROS_MESSAGE_TYPES = new Set<string>([
   "entros/heartbeat",
 ]);
 
-const CLUSTERS = new Set<string>(["devnet", "mainnet-beta"]);
+const CLUSTERS = new Set<string>(["devnet"]);
 
 export function isEntrosMessage(data: unknown): data is EntrosMessage {
   if (typeof data !== "object" || data === null) return false;

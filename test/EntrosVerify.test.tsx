@@ -33,7 +33,7 @@ describe("<EntrosVerify>", () => {
   it("renders default button text", () => {
     render(
       <EntrosVerify
-        integratorKey="jupiter"
+        integratorKey="demo-integrator"
         onVerified={vi.fn()}
       />,
     );
@@ -42,7 +42,7 @@ describe("<EntrosVerify>", () => {
 
   it("renders custom children", () => {
     render(
-      <EntrosVerify integratorKey="jupiter" onVerified={vi.fn()}>
+      <EntrosVerify integratorKey="demo-integrator" onVerified={vi.fn()}>
         Claim airdrop
       </EntrosVerify>,
     );
@@ -51,32 +51,19 @@ describe("<EntrosVerify>", () => {
 
   it("triggers window.open on click", () => {
     render(
-      <EntrosVerify integratorKey="jupiter" onVerified={vi.fn()} />,
+      <EntrosVerify integratorKey="demo-integrator" onVerified={vi.fn()} />,
     );
     fireEvent.click(screen.getByRole("button"));
     expect(openSpy).toHaveBeenCalledOnce();
     const url = new URL(String(openSpy.mock.calls[0]?.[0]));
     expect(url.origin).toBe("https://entros.io");
-    expect(url.searchParams.get("integrator")).toBe("jupiter");
+    expect(url.searchParams.get("integrator")).toBe("demo-integrator");
     expect(url.searchParams.get("cluster")).toBe("devnet");
-  });
-
-  it("uses custom cluster when provided", () => {
-    render(
-      <EntrosVerify
-        integratorKey="jupiter"
-        cluster="mainnet-beta"
-        onVerified={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button"));
-    const url = new URL(String(openSpy.mock.calls[0]?.[0]));
-    expect(url.searchParams.get("cluster")).toBe("mainnet-beta");
   });
 
   it("disables the button while waiting", () => {
     render(
-      <EntrosVerify integratorKey="jupiter" onVerified={vi.fn()} />,
+      <EntrosVerify integratorKey="demo-integrator" onVerified={vi.fn()} />,
     );
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByRole("button")).toBeDisabled();
@@ -88,7 +75,7 @@ describe("<EntrosVerify>", () => {
     const onError = vi.fn();
     render(
       <EntrosVerify
-        integratorKey="jupiter"
+        integratorKey="demo-integrator"
         onVerified={vi.fn()}
         onError={onError}
       />,
@@ -105,7 +92,7 @@ describe("<EntrosVerify>", () => {
     openSpy.mockReturnValue(null);
     render(
       <EntrosVerify
-        integratorKey="jupiter"
+        integratorKey="demo-integrator"
         onVerified={vi.fn()}
         popupBlockedFallback={false}
       />,
@@ -117,7 +104,7 @@ describe("<EntrosVerify>", () => {
   it("fallback retry triggers a fresh window.open", () => {
     openSpy.mockReturnValueOnce(null).mockReturnValue(popup);
     render(
-      <EntrosVerify integratorKey="jupiter" onVerified={vi.fn()} />,
+      <EntrosVerify integratorKey="demo-integrator" onVerified={vi.fn()} />,
     );
     fireEvent.click(screen.getByRole("button"));
     expect(openSpy).toHaveBeenCalledTimes(1);
@@ -130,7 +117,7 @@ describe("<EntrosVerify>", () => {
 
   it("fires onVerified when popup posts entros/verified", () => {
     const onVerified = vi.fn();
-    render(<EntrosVerify integratorKey="jupiter" onVerified={onVerified} />);
+    render(<EntrosVerify integratorKey="demo-integrator" onVerified={onVerified} />);
     fireEvent.click(screen.getByRole("button"));
 
     const url = new URL(String(openSpy.mock.calls[0]?.[0]));
@@ -171,7 +158,7 @@ describe("<EntrosVerify>", () => {
   it("forwards baseOrigin override (E2E testing)", () => {
     render(
       <EntrosVerify
-        integratorKey="jupiter"
+        integratorKey="demo-integrator"
         onVerified={vi.fn()}
         baseOrigin="http://localhost:3000"
       />,
@@ -184,7 +171,7 @@ describe("<EntrosVerify>", () => {
   it("applies className and style to the trigger button", () => {
     render(
       <EntrosVerify
-        integratorKey="jupiter"
+        integratorKey="demo-integrator"
         onVerified={vi.fn()}
         className="custom-class"
         style={{ background: "red" }}
@@ -197,7 +184,7 @@ describe("<EntrosVerify>", () => {
 
   it("rapid double-click does not open two popups (button disabled while waiting)", () => {
     render(
-      <EntrosVerify integratorKey="jupiter" onVerified={vi.fn()} />,
+      <EntrosVerify integratorKey="demo-integrator" onVerified={vi.fn()} />,
     );
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -210,7 +197,7 @@ describe("<EntrosVerify>", () => {
     const onError = vi.fn();
     const { unmount } = render(
       <EntrosVerify
-        integratorKey="jupiter"
+        integratorKey="demo-integrator"
         onVerified={vi.fn()}
         onError={onError}
       />,

@@ -24,6 +24,9 @@ export interface BuildPopupUrlOptions {
 }
 
 export function buildPopupUrl(opts: BuildPopupUrlOptions): string {
+  if (opts.cluster !== "devnet") {
+    throw new Error("Unsupported cluster: @entros/verify currently supports devnet only");
+  }
   if (!VALID_INTEGRATOR_KEY.test(opts.integratorKey)) {
     throw new Error(
       `Invalid integratorKey: must match /^[a-z0-9_-]{1,64}$/ (got "${opts.integratorKey}")`,

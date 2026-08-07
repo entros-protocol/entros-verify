@@ -6,7 +6,7 @@
  * (`walletPubkey`). The popup-manager layer translates between them.
  */
 
-export type Cluster = "devnet" | "mainnet-beta";
+export type Cluster = "devnet";
 
 /** Result delivered to the integrator's onVerified callback. */
 export interface EntrosVerifyResult {
