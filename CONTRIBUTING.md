@@ -35,9 +35,10 @@ cargo test
 **TypeScript**
 
 ```bash
-npx eslint .
-npx tsc --noEmit
+npm run typecheck
 npm test
+npm run build
+npm run verify-publish-contents
 ```
 
 **Anchor programs**
