@@ -83,7 +83,7 @@ Specific server-side rejection signals are deliberately not surfaced to the clie
 
 - Origin gate on every postMessage (`event.origin === "https://entros.io"`)
 - Replay protection via per-popup `request_id`
-- 9-minute default timeout
+- Parent timeout through [`timeoutMs`](#full-api)
 - Popup-blocked fallback with user-gesture retry
 - Idempotent cancel
 - React 19 typed strict-mode

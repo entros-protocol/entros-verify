@@ -53,10 +53,7 @@ export interface EntrosVerifyProps {
   popupWidth?: number;
   /** Popup height in CSS pixels. Defaults to 720. */
   popupHeight?: number;
-  /**
-   * Maximum time the popup is allowed to be open before this component
-   * fires onError({reason: "timeout"}). Defaults to 9 minutes.
-   */
+  /** See README.md#full-api for timeout behavior and the default. */
   timeoutMs?: number;
   /** Custom button content. Defaults to "Verify with Entros". */
   children?: ReactNode;

@@ -23,9 +23,8 @@ import type {
 /**
  * Maximum allowed clock drift between popup and parent. 90 seconds.
  *
- * The popup completes verification in seconds. A tighter window narrows
- * replay surface without affecting legitimate flows. The 9-minute
- * popup-open timeout is enforced separately by popup-manager.
+ * The popup timestamps each message when it posts it. This window checks
+ * delivery freshness and does not limit total verification duration.
  */
 const MAX_TIMESTAMP_DRIFT_MS = 90 * 1000;
 

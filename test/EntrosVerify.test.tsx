@@ -27,6 +27,7 @@ describe("<EntrosVerify>", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -68,6 +69,32 @@ describe("<EntrosVerify>", () => {
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByRole("button")).toBeDisabled();
     expect(screen.getByRole("button")).toHaveTextContent("Verifying…");
+  });
+
+  it("keeps the default verification open past the website backstop", () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+    render(
+      <EntrosVerify
+        integratorKey="demo-integrator"
+        onVerified={vi.fn()}
+        onError={onError}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+
+    act(() => vi.advanceTimersByTime(8 * 60 * 1000 + 30_000));
+    expect(onError).not.toHaveBeenCalled();
+    expect(popup.close).not.toHaveBeenCalled();
+    expect(screen.getByRole("button")).toHaveTextContent("Verifying…");
+
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(onError).toHaveBeenCalledWith({ reason: "timeout" });
+    expect(popup.close).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button")).toBeEnabled();
+    expect(
+      screen.getByRole("button").closest(".entros-verify-container"),
+    ).toHaveAttribute("data-state", "error");
   });
 
   it("shows popup-blocked fallback when window.open returns null", () => {
