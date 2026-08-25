@@ -1,6 +1,6 @@
 {
   "name": "@entros/verify",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React popup component for wallet-connected Entros verification on Solana devnet",
   "license": "MIT",
   "homepage": "https://entros.io",
