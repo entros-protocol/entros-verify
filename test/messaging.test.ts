@@ -64,14 +64,14 @@ describe("isEntrosMessage", () => {
 });
 
 describe("isFreshMessage", () => {
-  it("accepts a message within the 5-minute drift window", () => {
+  it("accepts a message within the 90-second freshness window", () => {
     const now = 1_000_000_000_000;
     expect(isFreshMessage({ ...validMessage, timestamp: now }, now)).toBe(true);
     expect(isFreshMessage({ ...validMessage, timestamp: now - 60_000 }, now)).toBe(true);
     expect(isFreshMessage({ ...validMessage, timestamp: now + 60_000 }, now)).toBe(true);
   });
 
-  it("rejects messages older than 5 minutes", () => {
+  it("rejects messages older than 90 seconds", () => {
     const now = 1_000_000_000_000;
     expect(isFreshMessage({ ...validMessage, timestamp: now - 6 * 60_000 }, now)).toBe(false);
   });
