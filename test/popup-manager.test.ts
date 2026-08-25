@@ -116,8 +116,8 @@ describe("openVerifyPopup", () => {
     });
     expect(onError).not.toHaveBeenCalled();
     // Popup owns its own close on the verified path so its recognition
-    // surface renders before the window dies. Parent does not force-close
-    // synchronously; the defensive fallback fires after 5s.
+    // surface renders before the window dies. The defensive fallback closes
+    // it later if needed.
     expect(popup.close).not.toHaveBeenCalled();
     vi.advanceTimersByTime(30000);
     expect(popup.close).toHaveBeenCalled();
@@ -140,7 +140,7 @@ describe("openVerifyPopup", () => {
     expect(onError).toHaveBeenCalledWith({ reason: "wallet_rejected" });
     expect(onVerified).not.toHaveBeenCalled();
     // Popup-emitted errors are treated like verified: popup owns the close
-    // so its `PopupFailure` surface can render. Parent fallback fires at 5s.
+    // so its `PopupFailure` surface can render. The fallback closes it later.
     expect(popup.close).not.toHaveBeenCalled();
     vi.advanceTimersByTime(30000);
     expect(popup.close).toHaveBeenCalled();
@@ -341,6 +341,18 @@ describe("openVerifyPopup", () => {
     });
 
     vi.advanceTimersByTime(1000);
+    expect(onError).toHaveBeenCalledWith({ reason: "timeout" });
+  });
+
+  it("keeps the popup open through the website verification backstop", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    openVerifyPopup({ ...baseOpts, onVerified, onError });
+
+    vi.advanceTimersByTime(8 * 60 * 1000 + 30_000);
+    expect(onError).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(30_000);
     expect(onError).toHaveBeenCalledWith({ reason: "timeout" });
   });
 

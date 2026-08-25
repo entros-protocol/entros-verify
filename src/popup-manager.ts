@@ -33,7 +33,7 @@ import type {
 } from "./types";
 import { buildPopupUrl, generateRequestId } from "./url";
 
-const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_TIMEOUT_MS = 9 * 60 * 1000;
 const POPUP_CLOSED_POLL_MS = 500;
 
 /**

@@ -46,7 +46,7 @@ SAS issuance is best-effort after wallet-connected verification. Check that the 
   minTrustScore={200}               // optional floor on verification history
   popupWidth={480}                  // CSS px, default 480
   popupHeight={720}                 // CSS px, default 720
-  timeoutMs={5 * 60 * 1000}         // 5 min default
+  timeoutMs={9 * 60 * 1000}         // 9 min default
   popupBlockedFallback={true}       // inline retry UI when popup blocked
   className="..."                   // applied to trigger button
   style={{ ... }}
@@ -83,7 +83,7 @@ Specific server-side rejection signals are deliberately not surfaced to the clie
 
 - Origin gate on every postMessage (`event.origin === "https://entros.io"`)
 - Replay protection via per-popup `request_id`
-- 5-minute timeout
+- Parent timeout through [`timeoutMs`](#full-api)
 - Popup-blocked fallback with user-gesture retry
 - Idempotent cancel
 - React 19 typed strict-mode
