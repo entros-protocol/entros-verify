@@ -344,6 +344,18 @@ describe("openVerifyPopup", () => {
     expect(onError).toHaveBeenCalledWith({ reason: "timeout" });
   });
 
+  it("keeps the popup open through the website verification backstop", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    openVerifyPopup({ ...baseOpts, onVerified, onError });
+
+    vi.advanceTimersByTime(8 * 60 * 1000 + 30_000);
+    expect(onError).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(30_000);
+    expect(onError).toHaveBeenCalledWith({ reason: "timeout" });
+  });
+
   // -------------------------------------------------------------------------
   // Cancel handle
   // -------------------------------------------------------------------------

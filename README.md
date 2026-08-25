@@ -46,7 +46,7 @@ SAS issuance is best-effort after wallet-connected verification. Check that the 
   minTrustScore={200}               // optional floor on verification history
   popupWidth={480}                  // CSS px, default 480
   popupHeight={720}                 // CSS px, default 720
-  timeoutMs={5 * 60 * 1000}         // 5 min default
+  timeoutMs={9 * 60 * 1000}         // 9 min default
   popupBlockedFallback={true}       // inline retry UI when popup blocked
   className="..."                   // applied to trigger button
   style={{ ... }}
