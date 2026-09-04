@@ -19,6 +19,7 @@ import type {
   HeartbeatPayload,
   VerifiedPayload,
 } from "./types";
+import { isPolicyReason } from "./policy";
 
 /**
  * Maximum allowed clock drift between popup and parent. 90 seconds.
@@ -72,11 +73,16 @@ export function isEntrosMessage(data: unknown): data is EntrosMessage {
   );
 }
 
-export function isFreshMessage(msg: EntrosMessage, now: number = Date.now()): boolean {
+export function isFreshMessage(
+  msg: EntrosMessage,
+  now: number = Date.now(),
+): boolean {
   return Math.abs(now - msg.timestamp) < MAX_TIMESTAMP_DRIFT_MS;
 }
 
-export function isVerifiedPayload(payload: unknown): payload is VerifiedPayload {
+export function isVerifiedPayload(
+  payload: unknown,
+): payload is VerifiedPayload {
   if (typeof payload !== "object" || payload === null) return false;
   const p = payload as Record<string, unknown>;
   return (
@@ -97,10 +103,17 @@ export function isVerifiedPayload(payload: unknown): payload is VerifiedPayload 
 export function isErrorPayload(payload: unknown): payload is ErrorPayload {
   if (typeof payload !== "object" || payload === null) return false;
   const p = payload as Record<string, unknown>;
-  return typeof p.reason === "string" && ERROR_REASONS.has(p.reason);
+  return (
+    typeof p.reason === "string" &&
+    ERROR_REASONS.has(p.reason) &&
+    (p.policy_reason === undefined ||
+      (isPolicyReason(p.policy_reason) && p.policy_reason !== "accepted"))
+  );
 }
 
-export function isHeartbeatPayload(payload: unknown): payload is HeartbeatPayload {
+export function isHeartbeatPayload(
+  payload: unknown,
+): payload is HeartbeatPayload {
   if (typeof payload !== "object" || payload === null) return false;
   const p = payload as Record<string, unknown>;
   return typeof p.status === "string" && HEARTBEAT_STATUSES.has(p.status);

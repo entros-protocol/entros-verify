@@ -13,6 +13,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import { openVerifyPopup, type PopupHandle } from "./popup-manager";
+import {
+  normalizePolicyRequest,
+  PolicyValidationError,
+  type PolicyRequest,
+  type PolicyRequestInput,
+} from "./policy";
 import type {
   Cluster,
   EntrosVerifyError,
@@ -43,6 +49,8 @@ export interface EntrosVerifyProps {
    * `validation_failed` instead of `entros/verified`.
    */
   minTrustScore?: number;
+  /** Application requirements. Missing policy uses the documented day/90-second defaults. */
+  policy?: PolicyRequestInput;
   /** Called on successful verification. Required. */
   onVerified: (result: EntrosVerifyResult) => void;
   /** Called on any failure or cancellation. Optional. */
@@ -131,11 +139,26 @@ export function EntrosVerify(props: EntrosVerifyProps): ReactElement {
     }
     setState({ kind: "opening" });
 
+    let policy: PolicyRequest;
+    try {
+      policy = normalizePolicyRequest(props.policy, props.minTrustScore);
+    } catch (error) {
+      const policyReason =
+        error instanceof PolicyValidationError
+          ? error.reason
+          : "unsupported_policy";
+      setState({ kind: "error", reason: "validation_failed" });
+      onErrorRef.current?.({ reason: "validation_failed", policyReason });
+      scheduleReset();
+      return;
+    }
+
     const handle = openVerifyPopup({
       baseOrigin: props.baseOrigin ?? DEFAULT_BASE_ORIGIN,
       integratorKey: props.integratorKey,
       cluster: props.cluster ?? "devnet",
       minTrustScore: props.minTrustScore,
+      policy,
       popupWidth: props.popupWidth ?? DEFAULT_POPUP_WIDTH,
       popupHeight: props.popupHeight ?? DEFAULT_POPUP_HEIGHT,
       timeoutMs: props.timeoutMs,
@@ -169,6 +192,7 @@ export function EntrosVerify(props: EntrosVerifyProps): ReactElement {
     props.cluster,
     props.integratorKey,
     props.minTrustScore,
+    props.policy,
     props.popupHeight,
     props.popupWidth,
     props.timeoutMs,
@@ -188,9 +212,7 @@ export function EntrosVerify(props: EntrosVerifyProps): ReactElement {
         className={props.className}
         style={props.style}
       >
-        {isWaiting
-          ? "Verifying…"
-          : (props.children ?? "Verify with Entros")}
+        {isWaiting ? "Verifying…" : (props.children ?? "Verify with Entros")}
       </button>
       {showFallback && (
         <div role="alert" className="entros-verify-blocked">

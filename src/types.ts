@@ -6,15 +6,18 @@
  * (`walletPubkey`). The popup-manager layer translates between them.
  */
 
+import type { PolicyReason, PolicyResult, PolicyWireResult } from "./policy";
+
 export type Cluster = "devnet";
 
 /** Result delivered to the integrator's onVerified callback. */
 export interface EntrosVerifyResult {
   walletPubkey: string;
-  attestationPda: string;
+  attestationPda: string | null;
   txSig: string;
   trustScore: number;
   cluster: Cluster;
+  policy: PolicyResult & { decision: "allow" };
 }
 
 /**
@@ -33,6 +36,7 @@ export type EntrosVerifyErrorReason =
 
 export interface EntrosVerifyError {
   reason: EntrosVerifyErrorReason;
+  policyReason?: PolicyReason;
 }
 
 export type EntrosVerifyProgressStatus =
@@ -66,14 +70,16 @@ export interface EntrosMessage<TPayload = unknown> {
 
 export interface VerifiedPayload {
   wallet_pubkey: string;
-  attestation_pda: string;
+  attestation_pda: string | null;
   tx_sig: string;
   trust_score: number;
   cluster: Cluster;
+  policy?: PolicyWireResult;
 }
 
 export interface ErrorPayload {
   reason: EntrosVerifyErrorReason;
+  policy_reason?: PolicyReason;
 }
 
 export interface HeartbeatPayload {
