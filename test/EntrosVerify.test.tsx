@@ -1,3 +1,4 @@
+import { makePolicyPayload } from "./policy-fixtures";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, act } from "@testing-library/react";
 import { EntrosVerify } from "../src/EntrosVerify";
@@ -33,12 +34,36 @@ describe("<EntrosVerify>", () => {
 
   it("renders default button text", () => {
     render(
-      <EntrosVerify
-        integratorKey="demo-integrator"
-        onVerified={vi.fn()}
-      />,
+      <EntrosVerify integratorKey="demo-integrator" onVerified={vi.fn()} />,
     );
     expect(screen.getByRole("button")).toHaveTextContent("Verify with Entros");
+  });
+
+  it("reports conflicting requirements before opening the popup", () => {
+    const onError = vi.fn();
+    render(
+      <EntrosVerify
+        integratorKey="demo-integrator"
+        minTrustScore={200}
+        policy={{
+          id: "claim",
+          version: 1,
+          minTrustScore: 300,
+          maxVerificationAgeSeconds: 60,
+          requiredAssurance: "browser_unattested",
+          uniquenessRequirement: "allow_unmeasured",
+          cluster: "devnet",
+        }}
+        onVerified={vi.fn()}
+        onError={onError}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "validation_failed",
+      policyReason: "unsupported_policy",
+    });
   });
 
   it("renders custom children", () => {
@@ -144,7 +169,9 @@ describe("<EntrosVerify>", () => {
 
   it("fires onVerified when popup posts entros/verified", () => {
     const onVerified = vi.fn();
-    render(<EntrosVerify integratorKey="demo-integrator" onVerified={onVerified} />);
+    render(
+      <EntrosVerify integratorKey="demo-integrator" onVerified={onVerified} />,
+    );
     fireEvent.click(screen.getByRole("button"));
 
     const url = new URL(String(openSpy.mock.calls[0]?.[0]));
@@ -159,13 +186,7 @@ describe("<EntrosVerify>", () => {
             type: "entros/verified",
             request_id: requestId,
             timestamp: Date.now(),
-            payload: {
-              wallet_pubkey: "wallet",
-              attestation_pda: "att",
-              tx_sig: "sig",
-              trust_score: 250,
-              cluster: "devnet",
-            },
+            payload: makePolicyPayload(),
           },
           origin: "https://entros.io",
           source: popup as unknown as Window,
@@ -173,13 +194,15 @@ describe("<EntrosVerify>", () => {
       );
     });
 
-    expect(onVerified).toHaveBeenCalledWith({
-      walletPubkey: "wallet",
-      attestationPda: "att",
-      txSig: "sig",
-      trustScore: 250,
-      cluster: "devnet",
-    });
+    expect(onVerified).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletPubkey: "11111111111111111111111111111111",
+        attestationPda: null,
+        txSig: "1".repeat(64),
+        trustScore: 250,
+        cluster: "devnet",
+      }),
+    );
   });
 
   it("forwards baseOrigin override (E2E testing)", () => {

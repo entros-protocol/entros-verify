@@ -8,6 +8,12 @@
 export { EntrosVerify } from "./EntrosVerify";
 export type { EntrosVerifyProps } from "./EntrosVerify";
 export type {
+  PolicyRequestInput,
+  PolicyRequest,
+  PolicyResult,
+  PolicyReason,
+} from "./policy";
+export type {
   Cluster,
   EntrosVerifyError,
   EntrosVerifyErrorReason,

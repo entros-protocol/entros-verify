@@ -22,8 +22,13 @@ import {
   isErrorPayload,
   isFreshMessage,
   isHeartbeatPayload,
-  isVerifiedPayload,
 } from "./messaging";
+import {
+  normalizePolicyRequest,
+  validatePolicyVerifiedPayload,
+  type PolicyReason,
+  type PolicyRequestInput,
+} from "./policy";
 import type {
   Cluster,
   EntrosVerifyError,
@@ -59,6 +64,7 @@ export interface OpenPopupOptions {
   integratorKey: string;
   cluster: Cluster;
   minTrustScore?: number;
+  policy?: PolicyRequestInput;
   popupWidth: number;
   popupHeight: number;
   timeoutMs?: number;
@@ -82,6 +88,10 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
   }
 
   const requestId = generateRequestId();
+  const requestedPolicy = normalizePolicyRequest(
+    opts.policy,
+    opts.minTrustScore,
+  );
   const parentOrigin = window.location.origin;
   const url = buildPopupUrl({
     baseOrigin: opts.baseOrigin,
@@ -90,6 +100,7 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
     cluster: opts.cluster,
     requestId,
     minTrustScore: opts.minTrustScore,
+    policy: requestedPolicy,
   });
 
   const left = Math.max(
@@ -181,6 +192,7 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
   function settleError(
     reason: EntrosVerifyErrorReason,
     forceImmediateClose = false,
+    policyReason?: PolicyReason,
   ): void {
     if (settled) return;
     settled = true;
@@ -190,7 +202,9 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
     } else {
       setTimeout(forceClosePopup, POPUP_OWNED_FALLBACK_CLOSE_MS);
     }
-    opts.onError({ reason });
+    opts.onError(
+      policyReason === undefined ? { reason } : { reason, policyReason },
+    );
   }
 
   function onMessage(event: MessageEvent): void {
@@ -213,20 +227,42 @@ export function openVerifyPopup(opts: OpenPopupOptions): PopupHandle | null {
 
     switch (event.data.type) {
       case "entros/verified": {
-        if (isVerifiedPayload(event.data.payload)) {
-          settleVerified({
-            walletPubkey: event.data.payload.wallet_pubkey,
-            attestationPda: event.data.payload.attestation_pda,
-            txSig: event.data.payload.tx_sig,
-            trustScore: event.data.payload.trust_score,
-            cluster: event.data.payload.cluster,
-          });
+        const validated = validatePolicyVerifiedPayload(
+          event.data.payload,
+          requestedPolicy,
+          Math.floor(Date.now() / 1000),
+        );
+        if (!validated.ok) {
+          settleError(
+            validated.reason === "state_unavailable"
+              ? "network_error"
+              : "validation_failed",
+            false,
+            validated.reason,
+          );
+          break;
         }
+        const evidence = validated.result.evidence;
+        settleVerified({
+          walletPubkey: evidence.identity.walletPubkey,
+          attestationPda:
+            evidence.attestation.status === "present"
+              ? evidence.attestation.address
+              : null,
+          txSig: evidence.transaction.signature,
+          trustScore: evidence.identity.trustScore,
+          cluster: evidence.cluster,
+          policy: validated.result,
+        });
         break;
       }
       case "entros/error": {
         if (isErrorPayload(event.data.payload)) {
-          settleError(event.data.payload.reason);
+          settleError(
+            event.data.payload.reason,
+            false,
+            event.data.payload.policy_reason,
+          );
         }
         break;
       }

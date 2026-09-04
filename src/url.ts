@@ -8,6 +8,11 @@
  */
 
 import type { Cluster } from "./types";
+import {
+  encodePolicyRequest,
+  normalizePolicyRequest,
+  type PolicyRequestInput,
+} from "./policy";
 
 const VALID_INTEGRATOR_KEY = /^[a-z0-9_-]{1,64}$/;
 const ORIGIN_PATTERN = /^https?:\/\/[^/]+$/;
@@ -21,11 +26,14 @@ export interface BuildPopupUrlOptions {
   cluster: Cluster;
   requestId: string;
   minTrustScore?: number;
+  policy?: PolicyRequestInput;
 }
 
 export function buildPopupUrl(opts: BuildPopupUrlOptions): string {
   if (opts.cluster !== "devnet") {
-    throw new Error("Unsupported cluster: @entros/verify currently supports devnet only");
+    throw new Error(
+      "Unsupported cluster: @entros/verify currently supports devnet only",
+    );
   }
   if (!VALID_INTEGRATOR_KEY.test(opts.integratorKey)) {
     throw new Error(
@@ -48,12 +56,15 @@ export function buildPopupUrl(opts: BuildPopupUrlOptions): string {
       );
     }
   }
+  const policy = normalizePolicyRequest(opts.policy, opts.minTrustScore);
 
   const url = new URL("/embed/verify-popup", opts.baseOrigin);
   url.searchParams.set("integrator", opts.integratorKey);
   url.searchParams.set("parent_origin", opts.parentOrigin);
   url.searchParams.set("cluster", opts.cluster);
   url.searchParams.set("request_id", opts.requestId);
+  url.searchParams.set("policy_version", "1");
+  url.searchParams.set("policy", encodePolicyRequest(policy));
   if (opts.minTrustScore !== undefined) {
     url.searchParams.set("min_trust_score", String(opts.minTrustScore));
   }

@@ -27,6 +27,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./policy": {
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.mjs",
+      "require": "./dist/policy.js"
     }
   },
   "files": [

@@ -1,3 +1,5 @@
+import { makePolicyPayload } from "./policy-fixtures";
+import { normalizePolicyRequest } from "../src/policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openVerifyPopup } from "../src/popup-manager";
 import type { EntrosMessage } from "../src/types";
@@ -91,29 +93,28 @@ describe("openVerifyPopup", () => {
     openVerifyPopup({ ...baseOpts, onVerified, onError });
 
     const requestId = getRequestIdFromOpenSpy(openSpy);
-    postMessage({
-      version: 1,
-      source: "entros",
-      type: "entros/verified",
-      request_id: requestId,
-      timestamp: Date.now(),
-      payload: {
-        wallet_pubkey: "11111111111111111111111111111111",
-        attestation_pda: "22222222222222222222222222222222",
-        tx_sig: "abcd",
-        trust_score: 250,
-        cluster: "devnet",
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: requestId,
+        timestamp: Date.now(),
+        payload: makePolicyPayload(),
       },
-    }, popup);
+      popup,
+    );
 
     expect(onVerified).toHaveBeenCalledOnce();
-    expect(onVerified).toHaveBeenCalledWith({
-      walletPubkey: "11111111111111111111111111111111",
-      attestationPda: "22222222222222222222222222222222",
-      txSig: "abcd",
-      trustScore: 250,
-      cluster: "devnet",
-    });
+    expect(onVerified).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletPubkey: "11111111111111111111111111111111",
+        attestationPda: null,
+        txSig: "1".repeat(64),
+        trustScore: 250,
+        cluster: "devnet",
+      }),
+    );
     expect(onError).not.toHaveBeenCalled();
     // Popup owns its own close on the verified path so its recognition
     // surface renders before the window dies. The defensive fallback closes
@@ -123,19 +124,130 @@ describe("openVerifyPopup", () => {
     expect(popup.close).toHaveBeenCalled();
   });
 
+  it("fails closed when an old popup omits the negotiated policy", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    openVerifyPopup({ ...baseOpts, onVerified, onError });
+    const { policy: _policy, ...payload } = makePolicyPayload();
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload,
+      },
+      popup,
+    );
+    expect(onVerified).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "validation_failed",
+      policyReason: "unsupported_policy",
+    });
+  });
+
+  it("enforces the original floor and accepts no second terminal message", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    openVerifyPopup({ ...baseOpts, minTrustScore: 300, onVerified, onError });
+    const requestId = getRequestIdFromOpenSpy(openSpy);
+    const payload = makePolicyPayload(normalizePolicyRequest(undefined, 300));
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: requestId,
+        timestamp: Date.now(),
+        payload,
+      },
+      popup,
+    );
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: requestId,
+        timestamp: Date.now(),
+        payload: makePolicyPayload(),
+      },
+      popup,
+    );
+    expect(onVerified).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "validation_failed",
+      policyReason: "score_below_minimum",
+    });
+  });
+
+  it("rejects changed top-level wallet evidence", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    openVerifyPopup({ ...baseOpts, onVerified, onError });
+    const payload = { ...makePolicyPayload(), wallet_pubkey: "another-wallet" };
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload,
+      },
+      popup,
+    );
+    expect(onVerified).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "validation_failed",
+      policyReason: "invalid_evidence",
+    });
+  });
+
+  it("enforces evaluation expiry even when the delivery timestamp is fresh", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    openVerifyPopup({ ...baseOpts, onVerified, onError });
+    const payload = makePolicyPayload(
+      undefined,
+      Math.floor(Date.now() / 1000) - 90,
+    );
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload,
+      },
+      popup,
+    );
+    expect(onVerified).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "validation_failed",
+      policyReason: "verification_stale",
+    });
+  });
+
   it("fires onError when popup posts entros/error", () => {
     const onVerified = vi.fn();
     const onError = vi.fn();
     openVerifyPopup({ ...baseOpts, onVerified, onError });
 
-    postMessage({
-      version: 1,
-      source: "entros",
-      type: "entros/error",
-      request_id: getRequestIdFromOpenSpy(openSpy),
-      timestamp: Date.now(),
-      payload: { reason: "wallet_rejected" },
-    }, popup);
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/error",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload: { reason: "wallet_rejected" },
+      },
+      popup,
+    );
 
     expect(onError).toHaveBeenCalledWith({ reason: "wallet_rejected" });
     expect(onVerified).not.toHaveBeenCalled();
@@ -152,14 +264,17 @@ describe("openVerifyPopup", () => {
     const onProgress = vi.fn();
     openVerifyPopup({ ...baseOpts, onVerified, onError, onProgress });
 
-    postMessage({
-      version: 1,
-      source: "entros",
-      type: "entros/heartbeat",
-      request_id: getRequestIdFromOpenSpy(openSpy),
-      timestamp: Date.now(),
-      payload: { status: "capturing" },
-    }, popup);
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/heartbeat",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload: { status: "capturing" },
+      },
+      popup,
+    );
 
     expect(onProgress).toHaveBeenCalledWith({ status: "capturing" });
     expect(onVerified).not.toHaveBeenCalled();
@@ -183,13 +298,7 @@ describe("openVerifyPopup", () => {
         type: "entros/verified",
         request_id: requestId,
         timestamp: Date.now(),
-        payload: {
-          wallet_pubkey: "x",
-          attestation_pda: "x",
-          tx_sig: "x",
-          trust_score: 100,
-          cluster: "devnet",
-        },
+        payload: makePolicyPayload(),
       },
       popup,
       { origin: "https://evil.example.com" },
@@ -208,20 +317,17 @@ describe("openVerifyPopup", () => {
     const onError = vi.fn();
     openVerifyPopup({ ...baseOpts, onVerified, onError });
 
-    postMessage({
-      version: 1,
-      source: "entros",
-      type: "entros/verified",
-      request_id: "WRONG_ID",
-      timestamp: Date.now(),
-      payload: {
-        wallet_pubkey: "x",
-        attestation_pda: "x",
-        tx_sig: "x",
-        trust_score: 100,
-        cluster: "devnet",
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: "WRONG_ID",
+        timestamp: Date.now(),
+        payload: makePolicyPayload(),
       },
-    }, popup);
+      popup,
+    );
 
     expect(onVerified).not.toHaveBeenCalled();
   });
@@ -236,21 +342,18 @@ describe("openVerifyPopup", () => {
     openVerifyPopup({ ...baseOpts, onVerified, onError });
 
     const requestId = getRequestIdFromOpenSpy(openSpy);
-    postMessage({
-      // intentionally bad envelope to exercise the type guard
-      version: 1,
-      source: "phishing" as unknown as "entros",
-      type: "entros/verified",
-      request_id: requestId,
-      timestamp: Date.now(),
-      payload: {
-        wallet_pubkey: "x",
-        attestation_pda: "x",
-        tx_sig: "x",
-        trust_score: 100,
-        cluster: "devnet",
-      },
-    } as EntrosMessage, popup);
+    postMessage(
+      {
+        // intentionally bad envelope to exercise the type guard
+        version: 1,
+        source: "phishing" as unknown as "entros",
+        type: "entros/verified",
+        request_id: requestId,
+        timestamp: Date.now(),
+        payload: makePolicyPayload(),
+      } as EntrosMessage,
+      popup,
+    );
 
     expect(onVerified).not.toHaveBeenCalled();
   });
@@ -305,20 +408,17 @@ describe("openVerifyPopup", () => {
     openVerifyPopup({ ...baseOpts, onVerified, onError });
 
     const requestId = getRequestIdFromOpenSpy(openSpy);
-    postMessage({
-      version: 1,
-      source: "entros",
-      type: "entros/verified",
-      request_id: requestId,
-      timestamp: Date.now(),
-      payload: {
-        wallet_pubkey: "x",
-        attestation_pda: "x",
-        tx_sig: "x",
-        trust_score: 100,
-        cluster: "devnet",
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: requestId,
+        timestamp: Date.now(),
+        payload: makePolicyPayload(),
       },
-    }, popup);
+      popup,
+    );
     popup.closed = true;
     vi.advanceTimersByTime(3000);
 
@@ -404,13 +504,7 @@ describe("openVerifyPopup", () => {
         type: "entros/verified",
         request_id: requestId,
         timestamp: Date.now(),
-        payload: {
-          wallet_pubkey: "x",
-          attestation_pda: "x",
-          tx_sig: "x",
-          trust_score: 100,
-          cluster: "devnet",
-        },
+        payload: makePolicyPayload(),
       },
       origin: POPUP_ORIGIN,
       source: otherWindow,
@@ -430,20 +524,17 @@ describe("openVerifyPopup", () => {
     const onError = vi.fn();
     openVerifyPopup({ ...baseOpts, onVerified, onError });
 
-    postMessage({
-      version: 1,
-      source: "entros",
-      type: "entros/verified",
-      request_id: getRequestIdFromOpenSpy(openSpy),
-      timestamp: Date.now() - 10 * 60 * 1000, // 10 min ago — past 90s window
-      payload: {
-        wallet_pubkey: "x",
-        attestation_pda: "x",
-        tx_sig: "x",
-        trust_score: 100,
-        cluster: "devnet",
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now() - 10 * 60 * 1000, // 10 min ago — past 90s window
+        payload: makePolicyPayload(),
       },
-    }, popup);
+      popup,
+    );
 
     expect(onVerified).not.toHaveBeenCalled();
   });
@@ -476,20 +567,17 @@ describe("openVerifyPopup", () => {
 
     expect(idA).not.toBe(idB);
 
-    postMessage({
-      version: 1,
-      source: "entros",
-      type: "entros/verified",
-      request_id: idA,
-      timestamp: Date.now(),
-      payload: {
-        wallet_pubkey: "x",
-        attestation_pda: "x",
-        tx_sig: "x",
-        trust_score: 100,
-        cluster: "devnet",
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: idA,
+        timestamp: Date.now(),
+        payload: makePolicyPayload(),
       },
-    }, popupA);
+      popupA,
+    );
 
     expect(onVerifiedA).toHaveBeenCalledOnce();
     expect(onVerifiedB).not.toHaveBeenCalled();
