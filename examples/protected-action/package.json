@@ -14,5 +14,10 @@
     "@entros/verify": "0.2.0",
     "@coral-xyz/anchor": "0.32.1",
     "@solana/web3.js": "1.98.4"
+  },
+  "devDependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "typescript": "6.0.2"
   }
 }
