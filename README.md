@@ -7,11 +7,11 @@ It opens the Entros popup and checks the returned application policy result befo
 
 Source: [github.com/entros-protocol/entros-verify](https://github.com/entros-protocol/entros-verify) · Hosted by [entros.io](https://entros.io).
 
-This README describes the prepared `0.2.0` source release. npm still serves `0.1.1` as `latest`.
-Package publication and the compatible hosted popup release remain pending.
-Deploy an upgraded consumer after the compatible popup release completes.
+This README describes Verify `0.2.0`. Pin the version when integrating the policy contract.
+The package is published, and the hosted Entros popup supports this policy contract.
+A self-hosted popup must implement the same contract before it can serve an upgraded consumer.
 
-After publication, install the prepared version with React 19:
+Install version `0.2.0` with React 19:
 
 ```bash
 npm install @entros/verify@0.2.0
@@ -26,7 +26,7 @@ import { EntrosVerify } from "@entros/verify";
   integratorKey="your-integrator-key"
   onVerified={(result) => showVerificationResult(result)}
   onError={(error) => showVerificationError(error.reason, error.policyReason)}
-/>
+/>;
 ```
 
 Without `policy`, the component uses a one-day verification age, a 90-second evaluation age, and optional SAS issuance.
@@ -109,27 +109,29 @@ Use `style` for inline styles and children for custom button content.
 `onError` receives `reason` and an optional `policyReason`.
 Policy reasons describe application requirements or evidence availability. They do not expose private behavioral rejection signals.
 
-| Reason | Meaning |
-|---|---|
-| `wallet_rejected` | User denied wallet connection or signing |
+| Reason              | Meaning                                             |
+| ------------------- | --------------------------------------------------- |
+| `wallet_rejected`   | User denied wallet connection or signing            |
 | `validation_failed` | Verification or the application policy did not pass |
-| `network_error` | The flow encountered a network failure |
-| `user_canceled` | User closed the popup before completion |
-| `origin_invalid` | The integrator origin failed the allowlist check |
-| `popup_blocked` | The browser blocked `window.open()` |
-| `timeout` | The popup exceeded `timeoutMs` |
-| `unknown` | The flow encountered an unclassified failure |
+| `network_error`     | The flow encountered a network failure              |
+| `user_canceled`     | User closed the popup before completion             |
+| `origin_invalid`    | The integrator origin failed the allowlist check    |
+| `popup_blocked`     | The browser blocked `window.open()`                 |
+| `timeout`           | The popup exceeded `timeoutMs`                      |
+| `unknown`           | The flow encountered an unclassified failure        |
 
 ## Settlement checks
 
 The React-free `@entros/verify/policy` subpath exports `normalizePolicyRequest`, `evaluatePolicy`, and strict wire guards.
-Pair the evaluator with `readIntegratorEvidence` from the prepared Pulse `4.10.0` release against your service's configured RPC connection.
+Pair the evaluator with `readIntegratorEvidence` from Pulse `4.10.2` or later against your service's configured RPC connection.
 The evaluator accepts typed observations. It cannot authenticate observations supplied by a browser.
 
 For protected actions, your service owns the policy and authenticates the wallet's signature over a one-use action challenge.
 Bind the challenge to the wallet, action parameters, audience, and expiry.
 Read current chain evidence before executing the action. Consume the challenge and execute the action in one atomic operation.
 An on-chain action must enforce its requirements within the action transaction.
+
+Run the [protected-action example](examples/protected-action) to exercise signature checks, fresh policy evaluation, and one-use settlement with synthetic data.
 
 ## Migration from `0.1.1`
 

@@ -50,6 +50,13 @@ jobs:
       - name: Run tests
         run: npm test -- --silent=true --reporter=dot
 
+      - name: Test protected action example
+        working-directory: examples/protected-action
+        run: |
+          npm ci
+          npm test
+          npm run demo
+
       - name: Build package
         run: npm run build
 
