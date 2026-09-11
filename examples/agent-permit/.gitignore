@@ -1,0 +1,3 @@
+# Written by agent.mjs. Keep agent keys and request state out of the repository.
+agent-key.json
+agent-request*.json
