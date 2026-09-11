@@ -189,6 +189,8 @@ Sample the clock again after the reads, because a permit can expire while they r
 - The owner is the wallet in the Metaplex Core asset. The registry's cached owner and the `entros:human-operator` metadata grant nothing.
 - A transfer after the settlement read can still land before your action. An on-chain action must check ownership inside its transaction.
 
+Run the [agent-permit example](examples/agent-permit) to exercise issuance, both signatures, transfer rejection, and one-use settlement with synthetic data.
+
 A permit states current wallet control of a registered agent and the owner's Entros policy result. It does not establish legal ownership, population uniqueness, or hardware assurance.
 
 ## Migration from `0.1.1`
