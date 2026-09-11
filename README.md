@@ -7,14 +7,14 @@ It opens the Entros popup and checks the returned application policy result befo
 
 Source: [github.com/entros-protocol/entros-verify](https://github.com/entros-protocol/entros-verify) · Hosted by [entros.io](https://entros.io).
 
-This README describes Verify `0.2.0`. Pin the version when integrating the policy contract.
+Pin an exact version when you integrate the policy contract.
 The package is published, and the hosted Entros popup supports this policy contract.
 A self-hosted popup must implement the same contract before it can serve an upgraded consumer.
 
-Install version `0.2.0` with React 19:
+Install with React 19:
 
 ```bash
-npm install @entros/verify@0.2.0
+npm install @entros/verify
 ```
 
 ## Usage

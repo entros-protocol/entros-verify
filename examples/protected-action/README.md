@@ -1,7 +1,7 @@
 # Protected action with Entros policy
 
 This runnable Node.js example grants access to a synthetic resource after authenticating a signed action and evaluating current verification evidence.
-It uses Pulse 4.10.2 and Verify 0.2.0. The test suite exercises the same settlement service as the demonstration.
+It uses the Pulse and Verify releases pinned in `package.json`. The test suite exercises the same settlement service as the demonstration.
 
 ## Run locally
 
