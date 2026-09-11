@@ -7,14 +7,14 @@ It opens the Entros popup and checks the returned application policy result befo
 
 Source: [github.com/entros-protocol/entros-verify](https://github.com/entros-protocol/entros-verify) · Hosted by [entros.io](https://entros.io).
 
-This README describes Verify `0.2.0`. Pin the version when integrating the policy contract.
+Pin an exact version when you integrate the policy contract.
 The package is published, and the hosted Entros popup supports this policy contract.
 A self-hosted popup must implement the same contract before it can serve an upgraded consumer.
 
-Install version `0.2.0` with React 19:
+Install with React 19:
 
 ```bash
-npm install @entros/verify@0.2.0
+npm install @entros/verify
 ```
 
 ## Usage
@@ -132,6 +132,64 @@ Read current chain evidence before executing the action. Consume the challenge a
 An on-chain action must enforce its requirements within the action transaction.
 
 Run the [protected-action example](examples/protected-action) to exercise signature checks, fresh policy evaluation, and one-use settlement with synthetic data.
+
+## Agent Operator Permit
+
+The React-free `@entros/verify/agent-permit` subpath implements permit version 1 for agents in the 8004 agent registry on devnet.
+A permit authorizes one action by one registered agent. The wallet that owns the agent signs it, and the agent's registered agent wallet presents it.
+
+1. Your service reads the agent with `readAgentState` from Pulse `4.12.0` or later.
+2. Your service calls `createAgentPermitRequest` and stores the rendered text under its nonce.
+3. The owner opens the request on the Entros signing page and signs it with the owning wallet.
+4. The agent signs `renderAgentPermitPresentation(permitId)` with its agent wallet and sends the settlement bundle.
+5. Your service runs `precheckAgentPermit`, reads agent state and operator evidence, and runs `evaluateAgentPermit`.
+6. On `allow`, your service consumes the nonce and executes the stored action in one atomic operation.
+
+```ts
+import {
+  evaluateAgentPermit,
+  parseAgentPermitSettlement,
+  precheckAgentPermit,
+} from "@entros/verify/agent-permit";
+
+const bundle = parseAgentPermitSettlement(body);
+const stored = bundle && pending.get(bundle.nonce);
+if (!bundle || !stored) return reject("nonce_unavailable");
+
+const signatures = {
+  operatorSignature: bundle.operatorSignature,
+  presentationSignature: bundle.presentationSignature,
+};
+const precheck = precheckAgentPermit({ request: stored, ...signatures, nowSeconds: now() });
+if (!precheck.ok) return reject(precheck.reason);
+
+const [agentState, operatorEvidence] = await Promise.all([
+  readAgentState({ agent: stored.agent, connection }),
+  readIntegratorEvidence({
+    walletPubkey: stored.operator,
+    transactionSignature: bundle.verifiedTransaction,
+    connection,
+    nowSeconds: now,
+  }),
+]);
+const result = evaluateAgentPermit({
+  request: stored,
+  ...signatures,
+  agentState,
+  operatorEvidence,
+  nowSeconds: now(),
+});
+```
+
+The precheck covers expiry and both signatures, so an expired or forged permit costs your service no chain read.
+Sample the clock again after the reads, because a permit can expire while they run.
+
+- Settle only requests that your service stored. Never take request text, policy, or RPC settings from the agent.
+- Execute the stored action at settlement. Do not return a reusable credential to the presenter.
+- The owner is the wallet in the Metaplex Core asset. The registry's cached owner and the `entros:human-operator` metadata grant nothing.
+- A transfer after the settlement read can still land before your action. An on-chain action must check ownership inside its transaction.
+
+A permit states current wallet control of a registered agent and the owner's Entros policy result. It does not establish legal ownership, population uniqueness, or hardware assurance.
 
 ## Migration from `0.1.1`
 

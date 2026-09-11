@@ -17,7 +17,7 @@ export default defineConfig([
     },
   },
   {
-    entry: ["src/policy.ts"],
+    entry: ["src/policy.ts", "src/agent-permit.ts"],
     format: ["esm", "cjs"],
     dts: true,
     splitting: false,

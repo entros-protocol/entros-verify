@@ -1,6 +1,6 @@
 {
   "name": "@entros/verify",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "React popup component for wallet-connected Entros verification on Solana devnet",
   "license": "MIT",
   "homepage": "https://entros.io",
@@ -32,6 +32,11 @@
       "types": "./dist/policy.d.ts",
       "import": "./dist/policy.mjs",
       "require": "./dist/policy.js"
+    },
+    "./agent-permit": {
+      "types": "./dist/agent-permit.d.ts",
+      "import": "./dist/agent-permit.mjs",
+      "require": "./dist/agent-permit.js"
     }
   },
   "files": [
@@ -47,6 +52,10 @@
     "typecheck": "tsc --noEmit",
     "verify-publish-contents": "node scripts/verify-publish-contents.mjs",
     "prepublishOnly": "npm run typecheck && npm test && npm run verify-publish-contents && npm run build"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.9.7",
+    "@noble/hashes": "^1.8.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",
