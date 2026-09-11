@@ -69,3 +69,33 @@ jobs:
           set -euo pipefail
           git diff --check
           test -z "$(git status --porcelain --untracked-files=no)"
+
+  advisories:
+    name: Advisories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      # `npm audit` reads the lockfile, so this job needs no install.
+      - name: Audit package dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      # The examples pull `@coral-xyz/anchor`, which carries `toml`. That advisory
+      # has no fixed release, and the examples never reach Anchor's workspace
+      # helper that parses TOML. Raise the threshold once a fix exists.
+      - name: Audit example dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for example in examples/*/; do
+            (cd "$example" && npm audit --omit=dev --audit-level=critical)
+          done
