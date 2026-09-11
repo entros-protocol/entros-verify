@@ -57,6 +57,13 @@ jobs:
           npm test
           npm run demo
 
+      - name: Test agent permit example
+        working-directory: examples/agent-permit
+        run: |
+          npm ci
+          npm test
+          npm run demo
+
       - name: Build package
         run: npm run build
 
