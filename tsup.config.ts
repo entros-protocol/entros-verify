@@ -1,12 +1,16 @@
 import { defineConfig } from "tsup";
 
+// Published builds ship no source maps and no comments. Whitespace and syntax
+// are minified but identifiers are not, so stack traces stay readable.
 export default defineConfig([
   {
     entry: ["src/index.ts"],
     format: ["esm", "cjs"],
     dts: true,
     splitting: false,
-    sourcemap: true,
+    sourcemap: false,
+    minifyWhitespace: true,
+    minifySyntax: true,
     clean: false,
     external: ["react", "react-dom"],
     outDir: "dist",
@@ -21,7 +25,9 @@ export default defineConfig([
     format: ["esm", "cjs"],
     dts: true,
     splitting: false,
-    sourcemap: true,
+    sourcemap: false,
+    minifyWhitespace: true,
+    minifySyntax: true,
     clean: false,
     outDir: "dist",
   },
