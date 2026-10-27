@@ -29,7 +29,8 @@ import type {
 
 const DEFAULT_BASE_ORIGIN = "https://entros.io";
 const DEFAULT_POPUP_WIDTH = 480;
-const DEFAULT_POPUP_HEIGHT = 720;
+// Fits the three verification rounds without scrolling inside a browser popup.
+const DEFAULT_POPUP_HEIGHT = 800;
 /**
  * After a verification settles (done or error), state returns to idle so
  * the component is ready for re-use without consumer intervention. Long
@@ -59,7 +60,7 @@ export interface EntrosVerifyProps {
   onProgress?: (progress: EntrosVerifyProgress) => void;
   /** Popup width in CSS pixels. Defaults to 480. */
   popupWidth?: number;
-  /** Popup height in CSS pixels. Defaults to 720. */
+  /** Popup height in CSS pixels. Defaults to 800. */
   popupHeight?: number;
   /** See README.md#full-api for timeout behavior and the default. */
   timeoutMs?: number;
