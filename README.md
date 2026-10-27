@@ -88,7 +88,7 @@ Required attestations must exist and remain valid through consumption.
   cluster="devnet"
   minTrustScore={200}
   popupWidth={480}
-  popupHeight={720}
+  popupHeight={800}
   timeoutMs={9 * 60 * 1000}
   popupBlockedFallback={true}
   className="verification-button"

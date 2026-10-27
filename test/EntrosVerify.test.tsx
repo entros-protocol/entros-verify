@@ -85,6 +85,8 @@ describe("<EntrosVerify>", () => {
     expect(url.origin).toBe("https://entros.io");
     expect(url.searchParams.get("integrator")).toBe("demo-integrator");
     expect(url.searchParams.get("cluster")).toBe("devnet");
+    expect(String(openSpy.mock.calls[0]?.[2])).toContain("height=800");
+    expect(String(openSpy.mock.calls[0]?.[2])).toContain("width=480");
   });
 
   it("disables the button while waiting", () => {
