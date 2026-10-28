@@ -515,3 +515,85 @@ describe("policy wire boundary", () => {
     }
   });
 });
+
+describe("block time against the stored program clock", () => {
+  const zeroFloor = { ...policy, minTrustScore: 0 };
+  const freshMint = (blockTimeOffset: number) => {
+    const evidence = makePolicyEvidence(NOW);
+    evidence.transaction.kind = "mint";
+    evidence.identity.creationTimestamp = NOW - 10;
+    evidence.identity.lastVerificationTimestamp = NOW - 10;
+    evidence.identity.verificationCount = 0;
+    evidence.identity.trustScore = 0;
+    evidence.transaction.blockTime = NOW - 10 + blockTimeOffset;
+    return evidence;
+  };
+
+  it.each([-2, -1, 0, 1, 2])(
+    "allows a fresh mint whose block time differs from the stored clock by %i seconds",
+    (offset) => {
+      const evidence = freshMint(offset);
+      expect(isPolicyEvidence(evidence)).toBe(true);
+      expect(evaluate(evidence, zeroFloor).decision).toBe("allow");
+    },
+  );
+
+  it.each([-3, 3])(
+    "rejects a fresh mint whose block time differs from the stored clock by %i seconds",
+    (offset) => {
+      expect(evaluate(freshMint(offset), zeroFloor).reason).toBe(
+        "invalid_evidence",
+      );
+    },
+  );
+
+  it("rejects a fresh mint whose creation and verification times differ", () => {
+    const evidence = freshMint(1);
+    evidence.identity.lastVerificationTimestamp = NOW - 9;
+    expect(evaluate(evidence, zeroFloor).reason).toBe("invalid_evidence");
+  });
+
+  it("allows a rebaseline stamped up to two seconds after its block time", () => {
+    const evidence = makePolicyEvidence(NOW);
+    evidence.transaction.kind = "rebaseline";
+    evidence.identity.lastRebaselineTimestamp = NOW - 10;
+    evidence.transaction.blockTime = NOW - 12;
+    expect(evaluate(evidence).decision).toBe("allow");
+    evidence.transaction.blockTime = NOW - 13;
+    expect(evaluate(evidence).reason).toBe("invalid_evidence");
+  });
+
+  it("rejects a reset or an earlier-kind rebaseline inside the tolerance window", () => {
+    const evidence = makePolicyEvidence(NOW);
+    evidence.identity.lastResetTimestamp = NOW - 12;
+    expect(evaluate(evidence).reason).toBe("invalid_evidence");
+    evidence.identity.lastResetTimestamp = NOW - 13;
+    expect(evaluate(evidence).decision).toBe("allow");
+    evidence.identity.lastResetTimestamp = 0;
+    evidence.identity.lastRebaselineTimestamp = NOW - 11;
+    expect(evaluate(evidence).reason).toBe("invalid_evidence");
+    evidence.identity.lastRebaselineTimestamp = NOW - 12;
+    expect(evaluate(evidence).decision).toBe("allow");
+  });
+
+  it("accepts a fresh mint with a leading block time through the wire boundary", () => {
+    const evidence = freshMint(1);
+    const result = evaluatePolicy(
+      zeroFloor,
+      { status: "available", evidence },
+      NOW,
+    );
+    expect(result.decision).toBe("allow");
+    const payload = {
+      wallet_pubkey: evidence.identity.walletPubkey,
+      attestation_pda: null,
+      tx_sig: evidence.transaction.signature,
+      trust_score: evidence.identity.trustScore,
+      cluster: "devnet" as const,
+      policy: policyResultToWire(result),
+    };
+    expect(validatePolicyVerifiedPayload(payload, zeroFloor, NOW)).toMatchObject(
+      { ok: true },
+    );
+  });
+});
