@@ -140,6 +140,13 @@ function exactKeys(
   );
 }
 
+/**
+ * Seconds the RPC block time of a slot may differ from the Clock sysvar time
+ * the program stored in that slot. Devnet has served block times one second
+ * after the stored clock.
+ */
+const BLOCK_TIME_TOLERANCE_SECONDS = 2;
+
 function integer(
   value: unknown,
   minimum = 0,
@@ -407,7 +414,10 @@ export function isPolicyEvidence(value: unknown): value is PolicyEvidence {
     ]) ||
     !base58Bytes(transaction.signature, 64) ||
     !integer(transaction.slot) ||
-    !integer(transaction.blockTime, identity.creationTimestamp) ||
+    !integer(
+      transaction.blockTime,
+      identity.creationTimestamp - BLOCK_TIME_TOLERANCE_SECONDS,
+    ) ||
     !commitment(transaction.commitment) ||
     !["mint", "update", "rebaseline"].includes(String(transaction.kind))
   )
@@ -460,21 +470,28 @@ export function evaluatePolicy(
   const deny = (
     reason: Exclude<PolicyReason, "accepted" | "state_unavailable">,
   ): PolicyResult => ({ ...base, decision: "deny", reason, evidence });
+  // The program stores its own clock, which can trail or lead the RPC block
+  // time. A time that must precede the transaction is checked against the
+  // earliest clock it could have had, and one it wrote against the latest.
+  const earliestClock = transaction.blockTime - BLOCK_TIME_TOLERANCE_SECONDS;
+  const latestClock = transaction.blockTime + BLOCK_TIME_TOLERANCE_SECONDS;
   const freshMint =
     transaction.kind === "mint" &&
     identity.verificationCount === 0 &&
     identity.trustScore === 0 &&
-    identity.creationTimestamp === transaction.blockTime &&
-    identity.lastVerificationTimestamp === transaction.blockTime &&
+    identity.creationTimestamp === identity.lastVerificationTimestamp &&
+    identity.lastVerificationTimestamp >= earliestClock &&
+    identity.lastVerificationTimestamp <= latestClock &&
     identity.lastResetTimestamp === 0 &&
     identity.lastRebaselineTimestamp === 0;
   if (
     (identity.verificationCount === 0 && !freshMint) ||
     identity.currentCommitment !== transaction.commitment ||
-    identity.lastResetTimestamp >= transaction.blockTime ||
+    identity.lastResetTimestamp >= earliestClock ||
     identity.lastResetTimestamp > identity.lastVerificationTimestamp ||
     identity.lastRebaselineTimestamp > identity.lastVerificationTimestamp ||
-    identity.lastRebaselineTimestamp > transaction.blockTime ||
+    identity.lastRebaselineTimestamp >
+      (transaction.kind === "rebaseline" ? latestClock : earliestClock) ||
     identity.lastVerificationTimestamp > nowSeconds ||
     transaction.blockTime > nowSeconds ||
     evidence.readContextSlot < transaction.slot ||
