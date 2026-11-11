@@ -117,6 +117,7 @@ export type AgentPermitReason =
   | "permit_expired"
   | "invalid_signature"
   | "invalid_presentation"
+  | "request_mismatch"
   | "wrong_cluster"
   | "agent_missing"
   | "agent_invalid"
@@ -174,11 +175,32 @@ export interface AgentPermitSignatures {
   presentationSignature: string;
 }
 
+/**
+ * What a service issued for a permit. The nonce is required: two issued permits can share
+ * every term, and only the nonce tells them apart, so terms alone would let one signed permit
+ * settle once per issue. Each term is optional, so a service pins the terms it stores.
+ */
+export interface AgentPermitExpectation {
+  nonce: string;
+  agent?: string;
+  operator?: string;
+  audience?: string;
+  action?: AgentPermitAction;
+  policy?: PolicyRequest;
+}
+
 export interface AgentPermitEvaluationInput extends AgentPermitSignatures {
   request: AgentPermitRequest;
   agentState: AgentStateReadResult;
   operatorEvidence: PolicyEvidenceReadResult;
   nowSeconds: number;
+  /**
+   * What the service issued for this permit. Both signatures cover `request` as the caller
+   * supplies it, so a service that does not evaluate its own stored request passes the nonce
+   * and the terms it issued here. A signed request with another nonce or other terms is denied
+   * with `request_mismatch`.
+   */
+  expected?: AgentPermitExpectation;
 }
 
 export interface AgentPermitApproval {
@@ -746,6 +768,8 @@ export function evaluateAgentPermit(
   });
   if (!precheck.ok) return deny(precheck.reason);
   const { request } = precheck;
+  if (input.expected !== undefined && !matchesExpectation(request, input.expected))
+    return deny("request_mismatch");
 
   const state: unknown = input.agentState;
   if (!record(state)) return deny("agent_invalid");
@@ -786,6 +810,34 @@ export function evaluateAgentPermit(
   base.expiresAt = Math.min(request.expiresAt, policy.expiresAt);
   if (now >= base.expiresAt) return deny("permit_expired");
   return { ...base, decision: "allow", reason: "accepted" };
+}
+
+/** True when `request` carries the nonce and every term the service says it issued. */
+function matchesExpectation(request: AgentPermitRequest, expected: unknown): boolean {
+  if (!record(expected)) return false;
+  const { nonce, agent, operator, audience, action, policy } = expected;
+  if (typeof nonce !== "string" || nonce !== request.nonce) return false;
+  if (agent !== undefined && agent !== request.agent) return false;
+  if (operator !== undefined && operator !== request.operator) return false;
+  if (audience !== undefined && audience !== request.audience) return false;
+  if (action !== undefined) {
+    if (
+      !record(action) ||
+      action.label !== request.action.label ||
+      action.sha256 !== request.action.sha256
+    )
+      return false;
+  }
+  if (policy !== undefined) {
+    // One canonical encoding per policy, so field order cannot make two equal policies differ.
+    try {
+      if (encodePolicyRequest(policy as PolicyRequest) !== encodePolicyRequest(request.policy))
+        return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 function transactionSignature(value: unknown): value is string {
