@@ -15,7 +15,20 @@ import {
 } from "./policy";
 
 const VALID_INTEGRATOR_KEY = /^[a-z0-9_-]{1,64}$/;
-const ORIGIN_PATTERN = /^https?:\/\/[^/]+$/;
+
+/**
+ * True when `value` is an origin exactly as a browser reports one: scheme, host and a
+ * port that is not the default, and nothing else. A pattern over the text also admits
+ * credentials, a query and a fragment, and the popup would post its result there.
+ */
+function isOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && url.origin === value;
+  } catch {
+    return false;
+  }
+}
 
 export interface BuildPopupUrlOptions {
   /** entros.io base origin. Override for E2E testing only. */
@@ -40,7 +53,7 @@ export function buildPopupUrl(opts: BuildPopupUrlOptions): string {
       `Invalid integratorKey: must match /^[a-z0-9_-]{1,64}$/ (got "${opts.integratorKey}")`,
     );
   }
-  if (!ORIGIN_PATTERN.test(opts.parentOrigin)) {
+  if (!isOrigin(opts.parentOrigin)) {
     throw new Error(
       `Invalid parentOrigin: must be a fully-qualified origin (got "${opts.parentOrigin}")`,
     );

@@ -63,6 +63,31 @@ describe("buildPopupUrl", () => {
     ).toThrow(/Invalid parentOrigin/);
   });
 
+  // The popup posts its result to this origin. Anything but an origin in the form the
+  // browser reports is a misconfiguration, and must never reach the popup URL.
+  it.each([
+    "https://example.com?next=https://other.example",
+    "https://example.com?next=1",
+    "https://example.com#fragment",
+    "https://user:secret@example.com",
+    "https://example.com:443",
+    "https://EXAMPLE.com",
+    "https://example.com\\other",
+    "javascript://example.com",
+    "https://",
+  ])("rejects the parent origin %s", (parentOrigin) => {
+    expect(() => buildPopupUrl({ ...baseOpts, parentOrigin })).toThrow(/Invalid parentOrigin/);
+  });
+
+  it.each(["https://example.com", "http://localhost:3000", "https://app.example.com:8443"])(
+    "accepts the parent origin %s",
+    (parentOrigin) => {
+      expect(new URL(buildPopupUrl({ ...baseOpts, parentOrigin })).searchParams.get("parent_origin")).toBe(
+        parentOrigin,
+      );
+    },
+  );
+
   it("rejects min_trust_score out of [0, 10000]", () => {
     expect(() => buildPopupUrl({ ...baseOpts, minTrustScore: -1 })).toThrow(
       /Invalid minTrustScore/,

@@ -24,6 +24,7 @@ import {
   renderAgentPermitMessage,
   renderAgentPermitPresentation,
   verifyAgentPermitSignatures,
+  type AgentPermitExpectation,
   type AgentPermitRequest,
   type AgentStateEvidence,
   type AgentStateReadResult,
@@ -134,6 +135,7 @@ function settle(
     state?: AgentStateReadResult;
     evidence?: ReturnType<typeof operatorEvidence> | { status: "unavailable"; reason: string };
     signatures?: { operatorSignature: string; presentationSignature: string };
+    expected?: AgentPermitExpectation;
   } = {},
 ) {
   return evaluateAgentPermit({
@@ -142,6 +144,7 @@ function settle(
     agentState: options.state ?? agentState(request),
     operatorEvidence: options.evidence ?? operatorEvidence(now, request.operator),
     nowSeconds: now,
+    ...(options.expected ? { expected: options.expected } : {}),
   });
 }
 
@@ -616,6 +619,88 @@ describe("settlement evaluation", () => {
     expect(isAgentStateEvidence(evidence)).toBe(true);
     expect(isAgentStateEvidence({ ...evidence, readContextSlot: -1 })).toBe(false);
     expect(isAgentStateEvidence({ ...evidence, owner: "not base58" })).toBe(false);
+  });
+});
+
+describe("settlement against what the service issued", () => {
+  const request = standard.request;
+  const now = request.issuedAt + 60;
+  const issued: AgentPermitExpectation = {
+    nonce: request.nonce,
+    agent: request.agent,
+    operator: request.operator,
+    audience: request.audience,
+    action: { ...request.action },
+    policy: { ...request.policy },
+  };
+
+  it("allows a permit that matches the issued nonce and terms", () => {
+    expect(settle(request, now, { expected: issued })).toMatchObject({
+      decision: "allow",
+      reason: "accepted",
+    });
+    // The nonce is required. Each term is optional, so a service pins the terms it stores.
+    for (const terms of [
+      {},
+      { agent: issued.agent },
+      { operator: issued.operator },
+      { audience: issued.audience },
+      { action: issued.action },
+      { policy: issued.policy },
+    ]) {
+      expect(settle(request, now, { expected: { nonce: request.nonce, ...terms } }).decision).toBe("allow");
+    }
+  });
+
+  // Both signatures cover the request the caller hands in. A service that takes the request
+  // from the presenter needs this comparison, or it settles terms it never issued.
+  it.each<[string, Partial<AgentPermitExpectation>]>([
+    ["nonce", { nonce: "cd".repeat(16) }],
+    ["agent", { agent: "11111111111111111111111111111111" }],
+    ["operator", { operator: "11111111111111111111111111111111" }],
+    ["audience", { audience: "https://other.example/" }],
+    ["action label", { action: { ...request.action, label: `${request.action.label} twice` } }],
+    ["action record", { action: { ...request.action, sha256: "ab".repeat(32) } }],
+    ["policy score", { policy: { ...request.policy, minTrustScore: request.policy.minTrustScore + 1 } }],
+    ["policy attestation", { policy: { ...request.policy, requireAttestation: !request.policy.requireAttestation } }],
+    ["policy id", { policy: { ...request.policy, id: `${request.policy.id}-next` } }],
+  ])("denies a validly signed permit with another %s", (_part, expected) => {
+    const result = settle(request, now, { expected: { ...issued, ...expected } });
+    expect(result).toMatchObject({ decision: "deny", reason: "request_mismatch" });
+    // Refused before any chain evidence is read into the result.
+    expect(result.agentState).toBeNull();
+    expect(result.policy).toBeNull();
+  });
+
+  // A service that keeps the terms alone would settle one signed permit once per nonce it issued.
+  it("settles a signed permit only under the nonce it was issued with", () => {
+    const secondIssue = { ...issued, nonce: "ef".repeat(16) };
+    expect(settle(request, now, { expected: issued }).decision).toBe("allow");
+    expect(settle(request, now, { expected: secondIssue })).toMatchObject({
+      decision: "deny",
+      reason: "request_mismatch",
+    });
+  });
+
+  it("denies an expectation without a nonce", () => {
+    const { nonce: _nonce, ...terms } = issued;
+    expect(
+      settle(request, now, { expected: terms as unknown as AgentPermitExpectation }),
+    ).toMatchObject({ decision: "deny", reason: "request_mismatch" });
+  });
+
+  it("denies when the expectation itself is not a valid policy", () => {
+    const expected = { ...issued, policy: { ...request.policy, minTrustScore: -1 } };
+    expect(settle(request, now, { expected })).toMatchObject({
+      decision: "deny",
+      reason: "request_mismatch",
+    });
+  });
+
+  it("checks expiry and signatures before the comparison", () => {
+    expect(
+      settle(request, request.expiresAt, { expected: { ...issued, audience: "https://other.example/" } }).reason,
+    ).toBe("permit_expired");
   });
 });
 
