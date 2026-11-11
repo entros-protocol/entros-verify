@@ -154,31 +154,41 @@ export function EntrosVerify(props: EntrosVerifyProps): ReactElement {
       return;
     }
 
-    const handle = openVerifyPopup({
-      baseOrigin: props.baseOrigin ?? DEFAULT_BASE_ORIGIN,
-      integratorKey: props.integratorKey,
-      cluster: props.cluster ?? "devnet",
-      minTrustScore: props.minTrustScore,
-      policy,
-      popupWidth: props.popupWidth ?? DEFAULT_POPUP_WIDTH,
-      popupHeight: props.popupHeight ?? DEFAULT_POPUP_HEIGHT,
-      timeoutMs: props.timeoutMs,
-      onVerified: (result) => {
-        handleRef.current = null;
-        setState({ kind: "done" });
-        onVerifiedRef.current(result);
-        scheduleReset();
-      },
-      onError: (error) => {
-        handleRef.current = null;
-        setState({ kind: "error", reason: error.reason });
-        onErrorRef.current?.(error);
-        scheduleReset();
-      },
-      onProgress: (progress) => {
-        onProgressRef.current?.(progress);
-      },
-    });
+    let handle: ReturnType<typeof openVerifyPopup>;
+    try {
+      handle = openVerifyPopup({
+        baseOrigin: props.baseOrigin ?? DEFAULT_BASE_ORIGIN,
+        integratorKey: props.integratorKey,
+        cluster: props.cluster ?? "devnet",
+        minTrustScore: props.minTrustScore,
+        policy,
+        popupWidth: props.popupWidth ?? DEFAULT_POPUP_WIDTH,
+        popupHeight: props.popupHeight ?? DEFAULT_POPUP_HEIGHT,
+        timeoutMs: props.timeoutMs,
+        onVerified: (result) => {
+          handleRef.current = null;
+          setState({ kind: "done" });
+          onVerifiedRef.current(result);
+          scheduleReset();
+        },
+        onError: (error) => {
+          handleRef.current = null;
+          setState({ kind: "error", reason: error.reason });
+          onErrorRef.current?.(error);
+          scheduleReset();
+        },
+        onProgress: (progress) => {
+          onProgressRef.current?.(progress);
+        },
+      });
+    } catch {
+      // An invalid prop makes the opener throw before any popup exists. Without this the
+      // state would stay `opening` and the button would stay disabled.
+      setState({ kind: "error", reason: "validation_failed" });
+      onErrorRef.current?.({ reason: "validation_failed" });
+      scheduleReset();
+      return;
+    }
 
     if (handle === null) {
       setState({ kind: "blocked" });

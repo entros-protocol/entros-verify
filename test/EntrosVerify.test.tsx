@@ -66,6 +66,23 @@ describe("<EntrosVerify>", () => {
     });
   });
 
+  // An invalid prop makes the popup opener throw. The button must not stay disabled.
+  it("reports a popup that could not be opened and becomes usable again", () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+    render(
+      <EntrosVerify integratorKey="Not A Valid Key" onVerified={vi.fn()} onError={onError} />,
+    );
+    const button = screen.getByRole("button");
+    expect(() => fireEvent.click(button)).not.toThrow();
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({ reason: "validation_failed" });
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(button).not.toBeDisabled();
+  });
+
   it("renders custom children", () => {
     render(
       <EntrosVerify integratorKey="demo-integrator" onVerified={vi.fn()}>
