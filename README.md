@@ -184,7 +184,10 @@ const result = evaluateAgentPermit({
 The precheck covers expiry and both signatures, so an expired or forged permit costs your service no chain read.
 Sample the clock again after the reads, because a permit can expire while they run.
 
-- Settle only requests that your service stored. Never take request text, policy, or RPC settings from the agent.
+- Compare the request with what your service issued: at least the nonce and the terms. Passing the stored request as `request`, as above, does both.
+  A service that keeps only the nonce and some terms passes them as `expected: { nonce, audience, action, policy }`, with `agent` and `operator` when it stores them.
+  `evaluateAgentPermit` then denies a signed request with another nonce or other terms with `request_mismatch`.
+  Never take policy or RPC settings from the agent.
 - Execute the stored action at settlement. Do not return a reusable credential to the presenter.
 - The owner is the wallet in the Metaplex Core asset. The registry's cached owner and the `entros:human-operator` metadata grant nothing.
 - A transfer after the settlement read can still land before your action. An on-chain action must check ownership inside its transaction.
