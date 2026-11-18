@@ -1,4 +1,9 @@
-import { makePolicyPayload } from "./policy-fixtures";
+import { makePolicyEvidence, makePolicyPayload } from "./policy-fixtures";
+import {
+  evaluatePolicy,
+  normalizePolicyRequest,
+  policyResultToWire,
+} from "../src/policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, act } from "@testing-library/react";
 import { EntrosVerify } from "../src/EntrosVerify";
@@ -277,5 +282,174 @@ describe("<EntrosVerify>", () => {
     unmount();
     expect(popup.close).toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith({ reason: "user_canceled" });
+  });
+
+  it("delivers warm-reused policy results with original verifiedAt preserved", () => {
+    const onVerified = vi.fn();
+    const onProgress = vi.fn();
+    const now = Math.floor(Date.now() / 1000);
+    const originalVerifiedAt = now - 900;
+    const policy = normalizePolicyRequest({
+      id: "warm-component",
+      version: 1,
+      minTrustScore: 200,
+      maxVerificationAgeSeconds: 3600,
+      maxEvaluationAgeSeconds: 90,
+      requiredAssurance: "browser_unattested",
+      uniquenessRequirement: "allow_unmeasured",
+      requireAttestation: false,
+      cluster: "devnet",
+    });
+    const base = makePolicyEvidence(now);
+    const warmEvidence = {
+      ...base,
+      identity: {
+        ...base.identity,
+        creationTimestamp: originalVerifiedAt - 86400,
+        lastVerificationTimestamp: originalVerifiedAt,
+      },
+      transaction: {
+        ...base.transaction,
+        blockTime: originalVerifiedAt,
+      },
+    };
+    const evaluated = evaluatePolicy(
+      policy,
+      { status: "available", evidence: warmEvidence },
+      now,
+    );
+
+    render(
+      <EntrosVerify
+        integratorKey="demo-integrator"
+        policy={policy}
+        onVerified={onVerified}
+        onProgress={onProgress}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+
+    const url = new URL(String(openSpy.mock.calls[0]?.[0]));
+    expect(url.searchParams.get("policy_version")).toBe("1");
+    expect(url.searchParams.get("policy")).toContain('"id":"warm-component"');
+    const requestId = url.searchParams.get("request_id");
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            version: 1,
+            source: "entros",
+            type: "entros/verified",
+            request_id: requestId,
+            timestamp: Date.now(),
+            payload: {
+              wallet_pubkey: warmEvidence.identity.walletPubkey,
+              attestation_pda: null,
+              tx_sig: warmEvidence.transaction.signature,
+              trust_score: warmEvidence.identity.trustScore,
+              cluster: "devnet",
+              policy: policyResultToWire(evaluated),
+            },
+          },
+          origin: "https://entros.io",
+          source: popup as unknown as Window,
+        }),
+      );
+    });
+
+    expect(onProgress).not.toHaveBeenCalled();
+    expect(onVerified).toHaveBeenCalledOnce();
+    expect(
+      onVerified.mock.calls[0]?.[0].policy.evidence.identity
+        .lastVerificationTimestamp,
+    ).toBe(originalVerifiedAt);
+    expect(onVerified.mock.calls[0]?.[0].policy.evidenceTimestamp).toBe(
+      originalVerifiedAt,
+    );
+  });
+
+  it("rejects stale warm-reused results and restores the button", () => {
+    vi.useFakeTimers();
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    const now = Math.floor(Date.now() / 1000);
+    const staleVerifiedAt = now - 600;
+    const policy = normalizePolicyRequest({
+      id: "stale-component",
+      version: 1,
+      minTrustScore: 200,
+      maxVerificationAgeSeconds: 300,
+      maxEvaluationAgeSeconds: 90,
+      requiredAssurance: "browser_unattested",
+      uniquenessRequirement: "allow_unmeasured",
+      requireAttestation: false,
+      cluster: "devnet",
+    });
+    const base = makePolicyEvidence(now);
+    const staleEvidence = {
+      ...base,
+      identity: {
+        ...base.identity,
+        creationTimestamp: staleVerifiedAt - 86400,
+        lastVerificationTimestamp: staleVerifiedAt,
+      },
+      transaction: {
+        ...base.transaction,
+        blockTime: staleVerifiedAt,
+      },
+    };
+    const evaluated = evaluatePolicy(
+      policy,
+      { status: "available", evidence: staleEvidence },
+      now,
+    );
+
+    render(
+      <EntrosVerify
+        integratorKey="demo-integrator"
+        policy={policy}
+        onVerified={onVerified}
+        onError={onError}
+      />,
+    );
+    const button = screen.getByRole("button");
+    fireEvent.click(button);
+    const url = new URL(String(openSpy.mock.calls[0]?.[0]));
+    const requestId = url.searchParams.get("request_id");
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            version: 1,
+            source: "entros",
+            type: "entros/verified",
+            request_id: requestId,
+            timestamp: Date.now(),
+            payload: {
+              wallet_pubkey: staleEvidence.identity.walletPubkey,
+              attestation_pda: null,
+              tx_sig: staleEvidence.transaction.signature,
+              trust_score: staleEvidence.identity.trustScore,
+              cluster: "devnet",
+              policy: policyResultToWire(evaluated),
+            },
+          },
+          origin: "https://entros.io",
+          source: popup as unknown as Window,
+        }),
+      );
+    });
+
+    expect(onVerified).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "validation_failed",
+      policyReason: "verification_stale",
+    });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(button).toBeEnabled();
   });
 });
