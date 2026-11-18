@@ -1,0 +1,1020 @@
+{
+  "address": "GZYwTp2ozeuRA5Gof9vs4ya961aANcJBdUzB7LN6q4b2",
+  "metadata": {
+    "name": "entros_anchor",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Non-transferable identity token for Entros Protocol"
+  },
+  "instructions": [
+    {
+      "name": "mint_anchor",
+      "discriminator": [
+        68,
+        56,
+        113,
+        102,
+        236,
+        152,
+        146,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "identity_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_account",
+          "writable": true
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "protocol_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "initial_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "rebaseline_anchor",
+      "discriminator": [
+        129,
+        211,
+        18,
+        16,
+        17,
+        54,
+        143,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "identity_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "projection_version",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "reset_identity_state",
+      "discriminator": [
+        26,
+        78,
+        86,
+        143,
+        247,
+        132,
+        85,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "identity_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "projection_version",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "update_anchor",
+      "discriminator": [
+        120,
+        192,
+        72,
+        245,
+        112,
+        246,
+        119,
+        135
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "identity_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "verification_result",
+          "writable": true
+        },
+        {
+          "name": "protocol_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                81,
+                130,
+                250,
+                230,
+                30,
+                253,
+                246,
+                69,
+                82,
+                96,
+                7,
+                173,
+                78,
+                160,
+                131,
+                188,
+                70,
+                106,
+                173,
+                59,
+                102,
+                163,
+                198,
+                189,
+                82,
+                37,
+                225,
+                38,
+                52,
+                233,
+                157,
+                117
+              ]
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "verifier_program",
+          "address": "4F97jNoxQzT2qRbkWpW3ztC3Nz2TtKj3rnKG8ExgnrfV"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "receipt",
+          "type": {
+            "defined": {
+              "name": "UpdateReceiptArgs"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "IdentityState",
+      "discriminator": [
+        156,
+        32,
+        87,
+        93,
+        52,
+        155,
+        248,
+        207
+      ]
+    },
+    {
+      "name": "MigrationRecord",
+      "discriminator": [
+        16,
+        36,
+        116,
+        243,
+        192,
+        61,
+        40,
+        1
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "IdentityState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "creation_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "last_verification_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "verification_count",
+            "type": "u32"
+          },
+          {
+            "name": "trust_score",
+            "type": "u16"
+          },
+          {
+            "name": "current_commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "recent_timestamps",
+            "type": {
+              "array": [
+                "i64",
+                52
+              ]
+            }
+          },
+          {
+            "name": "last_reset_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "new_wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "projection_version",
+            "type": "u16"
+          },
+          {
+            "name": "last_rebaseline_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MigrationRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "migrated_at",
+            "type": "i64"
+          },
+          {
+            "name": "migrated_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "previous_wallet",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateReceiptArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validated_at",
+            "type": "i64"
+          },
+          {
+            "name": "assurance_tier",
+            "type": "u8"
+          },
+          {
+            "name": "session_final_digest",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

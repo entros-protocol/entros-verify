@@ -1,5 +1,10 @@
-import { makePolicyPayload } from "./policy-fixtures";
-import { normalizePolicyRequest } from "../src/policy";
+import { makePolicyEvidence, makePolicyPayload } from "./policy-fixtures";
+import {
+  evaluatePolicy,
+  normalizePolicyRequest,
+  policyResultToWire,
+  POLICY_NETWORK,
+} from "../src/policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openVerifyPopup } from "../src/popup-manager";
 import type { EntrosMessage } from "../src/types";
@@ -581,5 +586,183 @@ describe("openVerifyPopup", () => {
 
     expect(onVerifiedA).toHaveBeenCalledOnce();
     expect(onVerifiedB).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Warm policy reuse payloads
+  // -------------------------------------------------------------------------
+
+  it("accepts a warm-reused verified payload with preserved original verifiedAt and zero capture heartbeats", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    const onProgress = vi.fn();
+    const now = Math.floor(Date.now() / 1000);
+    const originalVerifiedAt = now - 600;
+    const policy = normalizePolicyRequest({
+      id: "warm-reuse",
+      version: 1,
+      minTrustScore: 200,
+      maxVerificationAgeSeconds: 3600,
+      maxEvaluationAgeSeconds: 90,
+      requiredAssurance: "browser_unattested",
+      uniquenessRequirement: "allow_unmeasured",
+      requireAttestation: true,
+      cluster: "devnet",
+    });
+    const base = makePolicyEvidence(now);
+    const warmEvidence = {
+      ...base,
+      identity: {
+        ...base.identity,
+        creationTimestamp: originalVerifiedAt - 86400,
+        lastVerificationTimestamp: originalVerifiedAt,
+      },
+      transaction: {
+        ...base.transaction,
+        blockTime: originalVerifiedAt,
+      },
+      attestation: {
+        status: "present" as const,
+        address: POLICY_NETWORK.programIds.verifier,
+        readContextSlot: 100,
+        expiresAt: now + 3600,
+      },
+    };
+    const evaluated = evaluatePolicy(
+      policy,
+      { status: "available", evidence: warmEvidence },
+      now,
+    );
+
+    openVerifyPopup({ ...baseOpts, policy, onVerified, onError, onProgress });
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload: {
+          wallet_pubkey: warmEvidence.identity.walletPubkey,
+          attestation_pda: warmEvidence.attestation.address,
+          tx_sig: warmEvidence.transaction.signature,
+          trust_score: warmEvidence.identity.trustScore,
+          cluster: "devnet",
+          policy: policyResultToWire(evaluated),
+        },
+      },
+      popup,
+    );
+
+    expect(onProgress).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onVerified).toHaveBeenCalledOnce();
+    const delivered = onVerified.mock.calls[0]?.[0];
+    expect(delivered.attestationPda).toBe(POLICY_NETWORK.programIds.verifier);
+    expect(delivered.policy.evidenceTimestamp).toBe(originalVerifiedAt);
+    expect(delivered.policy.evidence.identity.lastVerificationTimestamp).toBe(
+      originalVerifiedAt,
+    );
+    expect(delivered.policy.evaluatedAgeSeconds).toBe(600);
+  });
+
+  it("rejects a warm-reused verified payload whose original verifiedAt exceeds maxVerificationAgeSeconds", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    const now = Math.floor(Date.now() / 1000);
+    const staleVerifiedAt = now - 600;
+    const policy = normalizePolicyRequest({
+      id: "tight-age",
+      version: 1,
+      minTrustScore: 200,
+      maxVerificationAgeSeconds: 300,
+      maxEvaluationAgeSeconds: 90,
+      requiredAssurance: "browser_unattested",
+      uniquenessRequirement: "allow_unmeasured",
+      requireAttestation: false,
+      cluster: "devnet",
+    });
+    const base = makePolicyEvidence(now);
+    const staleEvidence = {
+      ...base,
+      identity: {
+        ...base.identity,
+        creationTimestamp: staleVerifiedAt - 86400,
+        lastVerificationTimestamp: staleVerifiedAt,
+      },
+      transaction: {
+        ...base.transaction,
+        blockTime: staleVerifiedAt,
+      },
+    };
+    const evaluated = evaluatePolicy(
+      policy,
+      { status: "available", evidence: staleEvidence },
+      now,
+    );
+
+    openVerifyPopup({ ...baseOpts, policy, onVerified, onError });
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload: {
+          wallet_pubkey: staleEvidence.identity.walletPubkey,
+          attestation_pda: null,
+          tx_sig: staleEvidence.transaction.signature,
+          trust_score: staleEvidence.identity.trustScore,
+          cluster: "devnet",
+          policy: policyResultToWire(evaluated),
+        },
+      },
+      popup,
+    );
+
+    expect(onVerified).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "validation_failed",
+      policyReason: "verification_stale",
+    });
+  });
+
+  it("maps state_unavailable policy payloads to network_error", () => {
+    const onVerified = vi.fn();
+    const onError = vi.fn();
+    const now = Math.floor(Date.now() / 1000);
+    const policy = normalizePolicyRequest();
+    const unavailable = evaluatePolicy(
+      policy,
+      { status: "unavailable", reason: "rpc_unavailable" },
+      now,
+    );
+
+    openVerifyPopup({ ...baseOpts, policy, onVerified, onError });
+    postMessage(
+      {
+        version: 1,
+        source: "entros",
+        type: "entros/verified",
+        request_id: getRequestIdFromOpenSpy(openSpy),
+        timestamp: Date.now(),
+        payload: {
+          wallet_pubkey: "11111111111111111111111111111111",
+          attestation_pda: null,
+          tx_sig: "1".repeat(64),
+          trust_score: 250,
+          cluster: "devnet",
+          policy: policyResultToWire(unavailable),
+        },
+      },
+      popup,
+    );
+
+    expect(onVerified).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      reason: "network_error",
+      policyReason: "state_unavailable",
+    });
   });
 });

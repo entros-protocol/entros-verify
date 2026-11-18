@@ -60,6 +60,39 @@ Supplying conflicting `minTrustScore` and `policy.minTrustScore` values fails be
 The result states `browser_unattested` assurance and `unmeasured` uniqueness.
 These fields do not establish sensor provenance or population uniqueness.
 
+## Warm policy reuse
+
+Before starting browser capture, a host can check whether the wallet already satisfies the policy on devnet.
+When existing evidence passes, verification completes at `0 SOL` and zero capture rounds.
+Warm reuse preserves the original `verifiedAt` timestamp (`lastVerificationTimestamp`). It never refreshes evidence age.
+
+`@entros/verify` exports `evaluateWarmPolicyReuse` without adding a dependency on `@entros/pulse-sdk`.
+Supply either a pre-read observation or injected async readers backed by your configured RPC connection:
+
+```ts
+import { evaluateWarmPolicyReuse } from "@entros/verify";
+
+const warm = await evaluateWarmPolicyReuse({
+  walletPubkey,
+  policy,
+  findVerification: ({ walletPubkey: wallet }) =>
+    findLatestVerificationTransaction({ walletPubkey: wallet, connection, verifiedAt }),
+  readEvidence: ({ walletPubkey: wallet, transactionSignature }) =>
+    readIntegratorEvidence({
+      walletPubkey: wallet,
+      transactionSignature: transactionSignature!,
+      connection,
+      nowSeconds: now,
+    }),
+  nowSeconds: now,
+});
+```
+
+`evaluateWarmPolicyReuse` normalizes the policy, rejects wallet mismatches, and returns `reused` only when `evaluatePolicy` returns `allow`.
+Set `requireLegacyAttestation: true` when calling without a negotiated policy so reuse requires a present attestation.
+Stale evidence, below-floor scores, reset identities, or missing evidence return `needs_capture` so the flow proceeds to capture.
+Reused results retain `devnet`, `browser_unattested` assurance, and `unmeasured` population uniqueness.
+
 ## Result
 
 ```ts
@@ -195,6 +228,13 @@ Sample the clock again after the reads, because a permit can expire while they r
 Run the [agent-permit example](examples/agent-permit) to exercise issuance, both signatures, transfer rejection, and one-use settlement with synthetic data.
 
 A permit states current wallet control of a registered agent and the owner's Entros policy result. It does not establish legal ownership, population uniqueness, or hardware assurance.
+
+## Reference consumer
+
+Run the [reference-consumer example](examples/reference-consumer) to test a standalone application built against published npm packages.
+It exercises warm policy reuse, Integrator Policy v1 settlement, Agent Operator Permit pause-and-approve, Realms voter-weight checks, and stage latency telemetry.
+For Realms governance, the plugin enforces `one eligible wallet, one vote` with current-slot expiry and migration-slot checks against each proposal.
+All demonstrations and tests run locally against synthetic devnet fixtures.
 
 ## Migration from `0.1.1`
 

@@ -64,6 +64,13 @@ jobs:
           npm test
           npm run demo
 
+      - name: Test reference consumer example
+        working-directory: examples/reference-consumer
+        run: |
+          npm ci
+          npm test
+          npm run demo
+
       - name: Build package
         run: npm run build
 
