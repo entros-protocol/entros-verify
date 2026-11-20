@@ -1,10 +1,12 @@
 /**
- * <EntrosVerify> — drop-in trigger for the Entros verification popup.
+ * <EntrosVerify> renders a trigger button for the Entros verification popup.
  *
- * Renders a button. On click, opens a popup window to entros.io. User
- * completes wallet-connected verification inside the popup; the popup
- * posts the result back via postMessage; this component fires the
- * integrator's onVerified callback.
+ * Clicking the button opens a popup window to entros.io. When the connected
+ * wallet already holds on-chain evidence that satisfies the requested policy,
+ * the hosted popup can complete via warm policy reuse at 0 SOL and zero
+ * capture rounds while preserving the original `verifiedAt` timestamp.
+ * Otherwise the user completes wallet-connected capture in the popup, and this
+ * component checks the returned policy result before calling `onVerified`.
  *
  * See README and `EntrosVerifyProps` for usage.
  */

@@ -7,6 +7,15 @@
 
 export { EntrosVerify } from "./EntrosVerify";
 export type { EntrosVerifyProps } from "./EntrosVerify";
+export { evaluateWarmPolicyReuse } from "./warm-policy";
+export type {
+  WarmPolicyReuseBaseInput,
+  WarmPolicyReuseInput,
+  WarmPolicyReuseObservationInput,
+  WarmPolicyReuseReaderInput,
+  WarmPolicyReuseResult,
+  WarmVerificationLookup,
+} from "./warm-policy";
 export type {
   PolicyRequestInput,
   PolicyRequest,
