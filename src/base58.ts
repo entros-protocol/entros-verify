@@ -14,7 +14,7 @@ export function base58Encode(bytes: Uint8Array): string {
 }
 
 export function base58Decode(text: string): Uint8Array | null {
-  if (text.length === 0) return null;
+  if (typeof text !== "string" || text.length === 0) return null;
   let number = 0n;
   for (const character of text) {
     const digit = ALPHABET.indexOf(character);
@@ -33,7 +33,7 @@ export function base58Decode(text: string): Uint8Array | null {
 
 /** Decodes a 32-byte key and rejects any text that is not its canonical encoding. */
 export function canonicalKeyBytes(text: string): Uint8Array | null {
-  if (text.length < 32 || text.length > 44) return null;
+  if (typeof text !== "string" || text.length < 32 || text.length > 44) return null;
   const bytes = base58Decode(text);
   if (!bytes || bytes.length !== 32 || base58Encode(bytes) !== text) return null;
   return bytes;
