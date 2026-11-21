@@ -437,6 +437,10 @@ export function createMcpApprovalGate(config: McpApprovalGateConfig) {
       },
     ): Promise<McpApprovalChallenge> {
       return createMcpApprovalChallenge({
+        subject: input.subject,
+        actor: input.actor,
+        action: input.action,
+        nonce: input.nonce,
         audience: config.audience,
         policy: input.policy ?? config.policy,
         lifetimeSeconds: input.lifetimeSeconds ?? config.lifetimeSeconds,
@@ -445,7 +449,6 @@ export function createMcpApprovalGate(config: McpApprovalGateConfig) {
         connection: config.connection,
         readAgentState: config.readAgentState,
         nowSeconds: input.nowSeconds ?? config.nowSeconds,
-        ...input,
       });
     },
 
@@ -463,13 +466,18 @@ export function createMcpApprovalGate(config: McpApprovalGateConfig) {
       },
     ): Promise<McpApprovalSettlementResult> {
       return verifyMcpApprovalSettlement({
+        settlement: input.settlement,
+        challenge: input.challenge,
+        expectedAction: input.expectedAction,
+        expectedSubject: input.expectedSubject,
+        expectedActor: input.expectedActor,
+        expectedPolicy: input.expectedPolicy,
         nonceStore,
         expectedAudience: config.audience,
         connection: config.connection,
         readAgentState: config.readAgentState,
         readIntegratorEvidence: config.readIntegratorEvidence,
         nowSeconds: input.nowSeconds ?? config.nowSeconds,
-        ...input,
       });
     },
   };

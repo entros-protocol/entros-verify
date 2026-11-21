@@ -62,7 +62,7 @@
     "typecheck": "tsc --noEmit",
     "check-licenses": "node scripts/check-licenses.mjs",
     "verify-publish-contents": "node scripts/verify-publish-contents.mjs",
-    "prepublishOnly": "npm run typecheck && npm test && npm run check-licenses && npm run verify-publish-contents && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run check-licenses && npm run build && npm run verify-publish-contents"
   },
   "dependencies": {
     "@noble/curves": "^1.9.7",

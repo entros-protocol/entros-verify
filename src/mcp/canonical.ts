@@ -110,9 +110,16 @@ function serializeValue(
     }
     ancestors.add(value);
     try {
-      const items = value.map((item) =>
-        serializeValue(item, depth + 1, ancestors),
-      );
+      const items: string[] = [];
+      for (let i = 0; i < value.length; i += 1) {
+        if (!Object.prototype.hasOwnProperty.call(value, i)) {
+          throw new McpActionValidationError(
+            "arguments",
+            "MCP action arrays must not contain sparse holes",
+          );
+        }
+        items.push(serializeValue(value[i], depth + 1, ancestors));
+      }
       return `[${items.join(",")}]`;
     } finally {
       ancestors.delete(value);

@@ -18,11 +18,12 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 export const ALLOWED_SPDX_LICENSES = Object.freeze([
   "MIT",
@@ -410,9 +411,18 @@ export function runCleanRoomLicenseAudit(packageDir) {
   }
 }
 
+function safeRealpath(targetPath) {
+  try {
+    return realpathSync(targetPath);
+  } catch {
+    return resolve(targetPath);
+  }
+}
+
 const isCli =
   process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+  safeRealpath(fileURLToPath(import.meta.url)) ===
+    safeRealpath(resolve(process.argv[1]));
 
 if (isCli) {
   const scriptDir = dirname(fileURLToPath(import.meta.url));

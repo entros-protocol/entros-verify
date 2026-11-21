@@ -807,5 +807,25 @@ describe("readAgentState", () => {
         connection: setupAgent(),
       }),
     ).toEqual({ status: "invalid", reason: "invalid_request" });
+
+    for (const badAgent of [null, undefined, 123, {}]) {
+      expect(
+        await readAgentState({
+          agent: badAgent as unknown as string,
+          connection: setupAgent(),
+        }),
+      ).toEqual({ status: "invalid", reason: "invalid_request" });
+    }
+
+    const fixture = createEvidenceFixture();
+    for (const badWallet of [null, undefined, 123, {}]) {
+      expect(
+        await readIntegratorEvidence({
+          ...fixture.input,
+          walletPubkey: badWallet as unknown as string,
+        }),
+      ).toEqual({ status: "invalid", reason: "invalid_request" });
+    }
+    expect(fixture.calls).toEqual([]);
   });
 });

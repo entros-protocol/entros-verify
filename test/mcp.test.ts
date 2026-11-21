@@ -341,6 +341,17 @@ describe("canonical MCP action hashing", () => {
     let deep: Record<string, unknown> = { leaf: 1 };
     for (let i = 0; i < 40; i += 1) deep = { child: deep };
     expect(() => canonicalizeJson(deep)).toThrow(McpActionValidationError);
+
+    const sparse: unknown[] = [];
+    sparse[1] = 42;
+    expect(() => canonicalizeJson(sparse)).toThrow(McpActionValidationError);
+    expect(() =>
+      canonicalizeMcpAction({
+        server: "s",
+        tool: "t",
+        arguments: { items: sparse },
+      }),
+    ).toThrow(McpActionValidationError);
   });
 });
 
@@ -1001,6 +1012,71 @@ describe("OpenAI mcp_approval_request, HumanLayer callbacks, and createMcpApprov
       },
     });
     expect(result.decision).toBe("allow");
+  });
+
+  it("prevents createMcpApprovalGate config clobber via undefined fields or runtime overrides", async () => {
+    const chain = createMockChain();
+    const strictPolicy = {
+      id: "strict-gate",
+      version: 1 as const,
+      minTrustScore: 450,
+      maxVerificationAgeSeconds: 1800,
+      maxEvaluationAgeSeconds: 60,
+      requiredAssurance: "browser_unattested" as const,
+      uniquenessRequirement: "allow_unmeasured" as const,
+      requireAttestation: true,
+      cluster: "devnet" as const,
+    };
+    const gate = createMcpApprovalGate({
+      audience: AUDIENCE,
+      policy: strictPolicy,
+      lifetimeSeconds: 120,
+      connection: chain.connection,
+      nowSeconds: () => NOW,
+    });
+
+    // Explicit undefined fields must never clobber pinned gate policy, lifetime, or clock.
+    const challenge = await gate.createChallenge({
+      actor: { agent: AGENT_ASSET },
+      action: { server: "vault", tool: "payout", arguments: { amount: 10 } },
+      policy: undefined,
+      lifetimeSeconds: undefined,
+      nowSeconds: undefined,
+    });
+    expect(challenge.policy).toEqual(strictPolicy);
+    expect(challenge.issuedAt).toBe(NOW);
+    expect(challenge.expiresAt).toBe(NOW + 120);
+
+    // Untrusted runtime properties must never bypass the gate's pinned nonceStore, audience, or readers.
+    const rogueStore = createInMemoryNonceStore();
+    const rogueChallenge = await createMcpApprovalChallenge({
+      subject: OWNER_KEY.publicKey,
+      actor: { agent: AGENT_ASSET, agentWallet: AGENT_WALLET_KEY.publicKey },
+      audience: "https://evil.example.test/tools",
+      action: { server: "vault", tool: "payout", arguments: { amount: 10 } },
+      nowSeconds: NOW,
+      nonceStore: rogueStore,
+    });
+    const rogueSettlement = signChallenge(
+      rogueChallenge,
+      chain.verifiedTransaction,
+    );
+    chain.resetRpcCalls();
+    const overridden = await gate.verifySettlement({
+      settlement: rogueSettlement,
+      ...({
+        nonceStore: rogueStore,
+        expectedAudience: "https://evil.example.test/tools",
+        readAgentState: () => {
+          throw new Error("Should never call injected reader");
+        },
+      } as Record<string, unknown>),
+    });
+    expect(overridden).toMatchObject({
+      decision: "deny",
+      reason: "nonce_not_found",
+    });
+    expect(chain.rpcCalls).toBe(0);
   });
 
   it("refuses agent_wallet_changed when the agent wallet rotated after permit issuance", async () => {

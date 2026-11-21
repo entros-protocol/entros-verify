@@ -1,5 +1,13 @@
 // @vitest-environment node
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -186,6 +194,59 @@ describe("scripts/check-licenses.mjs", () => {
         expect(
           report.errors.some((e: string) => e.includes("license file failed")),
         ).toBe(true);
+      },
+    );
+  });
+
+  it("exits non-zero via CLI even when invoked through a symlinked path", () => {
+    withTempPackage(
+      (dir) => {
+        const realPkg = join(dir, "real-pkg");
+        const linkPkg = join(dir, "linked-pkg");
+        mkdirSync(join(realPkg, "scripts"), { recursive: true });
+        copyFileSync(
+          join(REPO_ROOT, "scripts", "check-licenses.mjs"),
+          join(realPkg, "scripts", "check-licenses.mjs"),
+        );
+        writeJson(join(realPkg, "package.json"), {
+          name: "symlink-gpl-app",
+          version: "1.0.0",
+          license: "MIT",
+          dependencies: { "gpl-direct": "^1.0.0" },
+        });
+        writeJson(join(realPkg, "package-lock.json"), {
+          name: "symlink-gpl-app",
+          version: "1.0.0",
+          lockfileVersion: 3,
+          packages: {
+            "": {
+              name: "symlink-gpl-app",
+              version: "1.0.0",
+              license: "MIT",
+              dependencies: { "gpl-direct": "^1.0.0" },
+            },
+            "node_modules/gpl-direct": {
+              version: "1.0.0",
+              license: "GPL-3.0-only",
+            },
+          },
+        });
+        writeJson(join(realPkg, "node_modules/gpl-direct/package.json"), {
+          name: "gpl-direct",
+          version: "1.0.0",
+          license: "GPL-3.0-only",
+        });
+        symlinkSync(realPkg, linkPkg);
+      },
+      (dir) => {
+        const proc = spawnSync(
+          process.execPath,
+          [join(dir, "linked-pkg", "scripts", "check-licenses.mjs")],
+          { encoding: "utf-8" },
+        );
+        expect(proc.status).toBe(1);
+        expect(proc.stderr).toContain("Runtime license gate FAILED:");
+        expect(proc.stderr).toContain("gpl-direct");
       },
     );
   });
