@@ -50,6 +50,9 @@ jobs:
       - name: Run tests
         run: npm test -- --silent=true --reporter=dot
 
+      - name: Check runtime dependency licenses
+        run: npm run check-licenses
+
       - name: Test protected action example
         working-directory: examples/protected-action
         run: |

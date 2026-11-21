@@ -21,7 +21,12 @@ export default defineConfig([
     },
   },
   {
-    entry: ["src/policy.ts", "src/agent-permit.ts"],
+    entry: {
+      policy: "src/policy.ts",
+      "agent-permit": "src/agent-permit.ts",
+      solana: "src/solana/index.ts",
+      mcp: "src/mcp/index.ts",
+    },
     format: ["esm", "cjs"],
     dts: true,
     splitting: false,

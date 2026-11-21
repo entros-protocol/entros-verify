@@ -229,6 +229,43 @@ Run the [agent-permit example](examples/agent-permit) to exercise issuance, both
 
 A permit states current wallet control of a registered agent and the owner's Entros policy result. It does not establish legal ownership, population uniqueness, or hardware assurance.
 
+## Zero-GPL Solana readers (`@entros/verify/solana`)
+
+The React-free `@entros/verify/solana` subpath reads Solana devnet state using only permissive MIT dependencies (`@noble/curves` and `@noble/hashes`). It requires no `@solana/web3.js` or `@coral-xyz/anchor` runtime dependency and accepts a Solana RPC endpoint URL, a custom `fetch` config, or a duck-typed `Connection` instance.
+
+- `readIntegratorEvidence` and `findLatestVerificationTransaction` read confirmed Entros verification evidence, enforcing the 2-second slot-time tolerance, 15-second device clock catch-up, and 57-byte `MigrationRecord` checks.
+- `readAgentState` reads a Metaplex Core asset and its 8004 registry `AgentAccount` at one confirmed slot.
+- `verifyEntrosAttestation` fetches the SAS attestation, `IdentityState`, and `MigrationRecord` accounts in one batch.
+- `decodeIdentityState` and `readMigrationRecord` parse raw account buffers directly.
+
+```ts
+import { evaluatePolicy, normalizePolicyRequest } from "@entros/verify/policy";
+import { readIntegratorEvidence } from "@entros/verify/solana";
+
+const observation = await readIntegratorEvidence({
+  walletPubkey,
+  transactionSignature,
+  connection: "https://api.devnet.solana.com",
+  nowSeconds: () => Math.floor(Date.now() / 1000),
+});
+const result = evaluatePolicy(
+  normalizePolicyRequest(),
+  observation,
+  Math.floor(Date.now() / 1000),
+);
+```
+
+## MCP single-use approval adapter (`@entros/verify/mcp`)
+
+The React-free `@entros/verify/mcp` subpath wraps `@entros/verify/agent-permit`, `@entros/verify/policy`, and `@entros/verify/solana` into a pause-and-approve workflow for Model Context Protocol servers, OpenAI `mcp_approval_request` flows, and HumanLayer pause/resume callbacks.
+
+- `createMcpApprovalChallenge` binds `subject` (Core asset owner wallet), `actor` (8004 Metaplex Core asset and bound agent wallet), `audience`, canonical tool `action.sha256`, `policy`, `devnet`, and a lifetime up to 900 seconds.
+- `verifyMcpApprovalSettlement` validates permit structure, expiry, strict Ed25519 signatures, expected bindings, live Metaplex Core ownership, current Entros evidence, and policy rules before consuming the single-use nonce atomically through `McpNonceStore`. Failed attempts never burn a valid pending nonce.
+- `createChallengeFromOpenAiMcpRequest` and `settleOpenAiMcpApproval` adapt OpenAI `mcp_approval_request` and `mcp_approval_response` items.
+- `createHumanLayerApprovalCall` and `verifyHumanLayerApprovalCallback` adapt HumanLayer pause and resume webhooks.
+
+An owner-signed MCP approval preserves the original `verifiedAt` timestamp and `browser_unattested` assurance tier. It authorizes one later agent action and does not prove human presence when the agent executes that action.
+
 ## Reference consumer
 
 Run the [reference-consumer example](examples/reference-consumer) to test a standalone application built against published npm packages.
