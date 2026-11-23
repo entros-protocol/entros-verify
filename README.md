@@ -1,303 +1,208 @@
-# `@entros/verify`
+# `@entros/verify` and `entros-verify`
 
 [![npm version](https://img.shields.io/npm/v/@entros/verify.svg)](https://www.npmjs.com/package/@entros/verify)
 
-React component for wallet-connected Entros verification on Solana devnet.
-It opens the Entros popup and checks the returned application policy result before calling `onVerified`.
+Pure-MIT TypeScript (`@entros/verify@1.0.0`) and Python (`entros-verify@1.0.0`) SDKs for the Entros Live Human-Presence and Consent Firewall across Voice-AI and autonomous MCP agents.
 
-Source: [github.com/entros-protocol/entros-verify](https://github.com/entros-protocol/entros-verify) · Hosted by [entros.io](https://entros.io).
+Source: [github.com/entros-protocol/entros-verify](https://github.com/entros-protocol/entros-verify) | Docs and product: [entros.io](https://entros.io)
 
-Pin an exact version when you integrate the policy contract.
-The package is published, and the hosted Entros popup supports this policy contract.
-A self-hosted popup must implement the same contract before it can serve an upgraded consumer.
+## What this package does
 
-Install with React 19:
+`@entros/verify` binds real-time zero-retention voice liveness and hardware Passkey (`WebAuthn UV`) step-up approvals to single-use, `RFC 8785` canonical action permits (`Entros-Agent-Permit-v2`), with `IETF SCITT` (`RFC 9943`) transparency receipts and native MCP / Voice-AI adapters.
+
+- **Headless 3-dependency pure-MIT core:** `@noble/curves`, `@noble/hashes`, and `jose`. Zero GPL, AGPL, LGPL, or MPL runtime dependencies (`npm run check-licenses -- --clean-room`).
+- **React is optional:** `react` and `react-dom` are optional peers isolated strictly under `@entros/verify/react`. Node.js, Bun, Deno, Cloudflare Workers, and Vercel Edge runtimes import `.`, `./voice`, `./permit`, `./mcp`, `./browser-signals`, `./solana`, `./policy`, and `./agent-permit` without React.
+- **No wallets or tokens required for v2:** Enterprise Voice-AI and MCP deployments use standard HTTPS APIs, Ed25519 JWKS, OIDC/OAuth 2.1, and WebAuthn Passkeys. Preserved v1 Solana devnet readers and v1 wallet permits remain available under `@entros/verify/solana`, `@entros/verify/policy`, and `@entros/verify/agent-permit`.
+
+## Scope and assurance boundary
+
+- **Voice liveness vs caller identity:** A signed `VoiceLivenessVerdict` (`entros-voice-liveness+jwt`) evidences acoustic liveness for a scored audio window under a pinned `model_version` and `operating_profile` (`webrtc_16k`, `telephony_8k`, or `wideband_clean`) with mandatory `retention: "memory_only"`. It does not identify a caller's legal identity or store a voiceprint database. Caller identity comes from your authenticated session (`sub`) or a hardware Passkey assertion (`WebAuthn UV`).
+- **Empirical detection scope:** Detection performance depends on the pinned server `model_version` and codec operating profile. Entros makes no general deepfake immunity or unspoofable guarantee. Uncertain audio (`suspicious` or `insufficient_signal`) routes to hardware Passkey step-up rather than silent fallback.
+- **WebAuthn boundary:** Standard `navigator.credentials.get()` verifies hardware-backed user verification (`UP=1`, `UV=1`) over the `permit_challenge` at `expectedOrigin`. It does not guarantee hardware-screen display of tool JSON without W3C Secure Payment Confirmation or a native trusted signing UI.
+- **Passive browser telemetry:** `@entros/verify/browser-signals` produces additive telemetry tagged `assurance_tier: "passive_browser_risk"` and `standalone_consent: false`. It never satisfies voice or cryptographic Passkey policies.
+
+## Install
+
+### TypeScript / JavaScript
 
 ```bash
 npm install @entros/verify
 ```
 
-## Usage
+### Python (`>= 3.11`)
 
-```tsx
-import { EntrosVerify } from "@entros/verify";
-
-<EntrosVerify
-  integratorKey="your-integrator-key"
-  onVerified={(result) => showVerificationResult(result)}
-  onError={(error) => showVerificationError(error.reason, error.policyReason)}
-/>;
+```bash
+pip install entros-verify
+# Optional first-party Voice-AI and agent framework adapters:
+pip install "entros-verify[mcp,langgraph]"
+pip install livekit-plugins-entros pipecat-entros
 ```
 
-Without `policy`, the component uses a one-day verification age, a 90-second evaluation age, and optional SAS issuance.
-The score floor defaults to zero or the supplied `minTrustScore`.
-The consumer rejects older popups that omit the policy result.
+## Subpath exports (`@entros/verify`)
 
-## Application policy
+| Subpath | Purpose | React required |
+| --- | --- | --- |
+| `@entros/verify` | Headless v2 root (`EntrosClient`, `verifyAgentPermitV2`, `verifyVoiceLivenessVerdict`, `evaluatePolicyV2`, JCS, WebAuthn, SCITT, types) | No |
+| `@entros/verify/voice` | Voice Liveness REST (`POST /v1/voice/analyze`) and WebSocket (`GET /v1/voice/stream`) clients plus offline `VoiceLivenessVerdict` verifier | No |
+| `@entros/verify/permit` | Zero-dep `RFC 8785` JCS, strict `zip215: false` EdDSA JWS verifier, `Policy v2`, zero-CBOR P-256 WebAuthn verifier (`lowS: false`), `RFC 9449` DPoP, zero-dep CBOR-subset `IETF SCITT` verifier, bounded Ed25519 JWKS cache, and `/v1/permits/*` client | No |
+| `@entros/verify/mcp` | `MCP 2026-07-28` stateless `InputRequiredResult` (MRTR), `MCP 2025-11-25` `SEP-1036` URL-Mode Elicitation, HTTP `403 insufficient_scope`, OpenAI Responses v2, Vercel AI SDK `toolApproval`, LiveKit/Vapi/Retell webhook guards, atomic `PermitNonceStoreV2`, and preserved v1 helpers | No |
+| `@entros/verify/browser-signals` | Optional additive `passive_browser_risk` telemetry helper (never standalone consent) | No |
+| `@entros/verify/solana` | Preserved pure-MIT Solana devnet chain readers | No |
+| `@entros/verify/policy` | Preserved v1 Integrator Policy evaluator | No |
+| `@entros/verify/agent-permit` | Preserved v1 Agent Operator Permit evaluator | No |
+| `@entros/verify/react` | Optional React components (`EntrosPasskeyApprove` and legacy `EntrosVerify`) with `"use client"` | Yes |
 
-```tsx
-<EntrosVerify
-  integratorKey="your-integrator-key"
-  policy={{
-    id: "claim-access",
-    version: 1,
-    minTrustScore: 200,
-    maxVerificationAgeSeconds: 300,
-    maxEvaluationAgeSeconds: 90,
-    requiredAssurance: "browser_unattested",
-    uniquenessRequirement: "allow_unmeasured",
-    requireAttestation: false,
-    cluster: "devnet",
-  }}
-  onVerified={(result) => showVerificationResult(result)}
-  onError={(error) => showVerificationError(error.reason, error.policyReason)}
-/>
-```
-
-The consumer checks the requested policy, account observations, score, freshness, and matching result fields.
-Supplying conflicting `minTrustScore` and `policy.minTrustScore` values fails before the popup opens.
-
-The result states `browser_unattested` assurance and `unmeasured` uniqueness.
-These fields do not establish sensor provenance or population uniqueness.
-
-## Warm policy reuse
-
-Before starting browser capture, a host can check whether the wallet already satisfies the policy on devnet.
-When existing evidence passes, verification completes at `0 SOL` and zero capture rounds.
-Warm reuse preserves the original `verifiedAt` timestamp (`lastVerificationTimestamp`). It never refreshes evidence age.
-
-`@entros/verify` exports `evaluateWarmPolicyReuse` without adding a dependency on `@entros/pulse-sdk`.
-Supply either a pre-read observation or injected async readers backed by your configured RPC connection:
-
-```ts
-import { evaluateWarmPolicyReuse } from "@entros/verify";
-
-const warm = await evaluateWarmPolicyReuse({
-  walletPubkey,
-  policy,
-  findVerification: ({ walletPubkey: wallet }) =>
-    findLatestVerificationTransaction({ walletPubkey: wallet, connection, verifiedAt }),
-  readEvidence: ({ walletPubkey: wallet, transactionSignature }) =>
-    readIntegratorEvidence({
-      walletPubkey: wallet,
-      transactionSignature: transactionSignature!,
-      connection,
-      nowSeconds: now,
-    }),
-  nowSeconds: now,
-});
-```
-
-`evaluateWarmPolicyReuse` normalizes the policy, rejects wallet mismatches, and returns `reused` only when `evaluatePolicy` returns `allow`.
-Set `requireLegacyAttestation: true` when calling without a negotiated policy so reuse requires a present attestation.
-Stale evidence, below-floor scores, reset identities, or missing evidence return `needs_capture` so the flow proceeds to capture.
-Reused results retain `devnet`, `browser_unattested` assurance, and `unmeasured` population uniqueness.
-
-## Result
-
-```ts
-import type { PolicyResult } from "@entros/verify/policy";
-
-interface EntrosVerifyResult {
-  walletPubkey: string;
-  attestationPda: string | null;
-  txSig: string;
-  trustScore: number;
-  cluster: "devnet";
-  policy: PolicyResult & { decision: "allow" };
-}
-```
-
-The `policy` result contains the evaluated requirements, expiry, and typed evidence.
-A non-null `attestationPda` identifies an account that passed validation during evaluation.
-Optional attestations with `missing` or `unavailable` status carry no issued address. Invalid accounts fail the policy.
-Required attestations must exist and remain valid through consumption.
-
-## Component options
-
-```tsx
-<EntrosVerify
-  integratorKey="your-integrator-key"
-  cluster="devnet"
-  minTrustScore={200}
-  popupWidth={480}
-  popupHeight={800}
-  timeoutMs={9 * 60 * 1000}
-  popupBlockedFallback={true}
-  className="verification-button"
-  onVerified={(result) => showVerificationResult(result)}
-  onError={(error) => showVerificationError(error.reason, error.policyReason)}
-  onProgress={(progress) => showProgress(progress.status)}
->
-  Verify with Entros
-</EntrosVerify>
-```
-
-`integratorKey` and `onVerified` are required. The dimensions, timeout, and popup fallback above show their defaults.
-Use `style` for inline styles and children for custom button content.
-`onProgress` reports popup heartbeats during the flow.
-
-## Errors
-
-`onError` receives `reason` and an optional `policyReason`.
-Policy reasons describe application requirements or evidence availability. They do not expose private behavioral rejection signals.
-
-| Reason              | Meaning                                             |
-| ------------------- | --------------------------------------------------- |
-| `wallet_rejected`   | User denied wallet connection or signing            |
-| `validation_failed` | Verification or the application policy did not pass |
-| `network_error`     | The flow encountered a network failure              |
-| `user_canceled`     | User closed the popup before completion             |
-| `origin_invalid`    | The integrator origin failed the allowlist check    |
-| `popup_blocked`     | The browser blocked `window.open()`                 |
-| `timeout`           | The popup exceeded `timeoutMs`                      |
-| `unknown`           | The flow encountered an unclassified failure        |
-
-## Settlement checks
-
-The React-free `@entros/verify/policy` subpath exports `normalizePolicyRequest`, `evaluatePolicy`, and strict wire guards.
-Pair the evaluator with `readIntegratorEvidence` from Pulse `4.10.2` or later against your service's configured RPC connection.
-The evaluator accepts typed observations. It cannot authenticate observations supplied by a browser.
-
-For protected actions, your service owns the policy and authenticates the wallet's signature over a one-use action challenge.
-Bind the challenge to the wallet, action parameters, audience, and expiry.
-Read current chain evidence before executing the action. Consume the challenge and execute the action in one atomic operation.
-An on-chain action must enforce its requirements within the action transaction.
-
-Run the [protected-action example](examples/protected-action) to exercise signature checks, fresh policy evaluation, and one-use settlement with synthetic data.
-
-## Agent Operator Permit
-
-The React-free `@entros/verify/agent-permit` subpath implements permit version 1 for agents in the 8004 agent registry on devnet.
-A permit authorizes one action by one registered agent. The wallet that owns the agent signs it, and the agent's registered agent wallet presents it.
-
-1. Your service reads the agent with `readAgentState` from Pulse `4.12.0` or later.
-2. Your service calls `createAgentPermitRequest` and stores the rendered text under its nonce.
-3. The owner opens the request on the Entros signing page and signs it with the owning wallet.
-4. The agent signs `renderAgentPermitPresentation(permitId)` with its agent wallet and sends the settlement bundle.
-5. Your service runs `precheckAgentPermit`, reads agent state and operator evidence, and runs `evaluateAgentPermit`.
-6. On `allow`, your service consumes the nonce and executes the stored action in one atomic operation.
+## Quickstart: Verify an `Entros-Agent-Permit-v2` offline
 
 ```ts
 import {
-  evaluateAgentPermit,
-  parseAgentPermitSettlement,
-  precheckAgentPermit,
-} from "@entros/verify/agent-permit";
+  createJwksCache,
+  InMemoryPermitNonceStoreV2,
+  verifyAgentPermitV2,
+  type PolicyV2,
+} from "@entros/verify";
 
-const bundle = parseAgentPermitSettlement(body);
-const stored = bundle && pending.get(bundle.nonce);
-if (!bundle || !stored) return reject("nonce_unavailable");
-
-const signatures = {
-  operatorSignature: bundle.operatorSignature,
-  presentationSignature: bundle.presentationSignature,
-};
-const precheck = precheckAgentPermit({ request: stored, ...signatures, nowSeconds: now() });
-if (!precheck.ok) return reject(precheck.reason);
-
-const [agentState, operatorEvidence] = await Promise.all([
-  readAgentState({ agent: stored.agent, connection }),
-  readIntegratorEvidence({
-    walletPubkey: stored.operator,
-    transactionSignature: bundle.verifiedTransaction,
-    connection,
-    nowSeconds: now,
-  }),
-]);
-const result = evaluateAgentPermit({
-  request: stored,
-  ...signatures,
-  agentState,
-  operatorEvidence,
-  nowSeconds: now(),
+const jwks = createJwksCache({
+  jwksUrl: "https://api.entros.io/.well-known/jwks.json",
+  ttlSeconds: 300,
+  negativeCacheSeconds: 10,
 });
+const nonceStore = new InMemoryPermitNonceStoreV2();
+
+const policy: PolicyV2 = {
+  policy_id: "wire-transfer-high-v2",
+  version: 2,
+  allowed_assurance_tiers: ["voice_plus_passkey", "passkey_webauthn_uv"],
+  required_modalities: ["webauthn_uv"],
+  max_evidence_age_seconds: 120,
+  max_permit_lifetime_seconds: 300,
+  require_continuity: true,
+  require_dpop: true,
+  require_scitt_receipt: true,
+};
+
+const result = await verifyAgentPermitV2({
+  permitJws,
+  policy,
+  expectedAudience: "https://mcp.acme-bank.example/v1/mcp",
+  action: {
+    kind: "mcp.tool_call",
+    server: "treasury-mcp",
+    tool: "transfer_funds",
+    arguments: { amount: 250, currency: "USD", recipient: "acct_9942" },
+  },
+  jwks,
+  dpop: { proof: dpopHeader, htm: "POST", htu: "https://mcp.acme-bank.example/v1/mcp" },
+  nonceStore,
+});
+
+if (result.decision !== "allow") {
+  throw new Error(`Denied: ${result.reason}`);
+}
 ```
 
-The precheck covers expiry and both signatures, so an expired or forged permit costs your service no chain read.
-Sample the clock again after the reads, because a permit can expire while they run.
+All non-mutating cryptographic, expiry, digest, policy, voice, WebAuthn, DPoP, and SCITT checks run before `nonceStore.consume()` is invoked. Failed probes never burn valid pending nonces.
 
-- Compare the request with what your service issued: at least the nonce and the terms. Passing the stored request as `request`, as above, does both.
-  A service that keeps only the nonce and some terms passes them as `expected: { nonce, audience, action, policy }`, with `agent` and `operator` when it stores them.
-  `evaluateAgentPermit` then denies a signed request with another nonce or other terms with `request_mismatch`.
-  Never take policy or RPC settings from the agent.
-- Execute the stored action at settlement. Do not return a reusable credential to the presenter.
-- The owner is the wallet in the Metaplex Core asset. The registry's cached owner and the `entros:human-operator` metadata grant nothing.
-- A transfer after the settlement read can still land before your action. An on-chain action must check ownership inside its transaction.
-
-Run the [agent-permit example](examples/agent-permit) to exercise issuance, both signatures, transfer rejection, and one-use settlement with synthetic data.
-
-A permit states current wallet control of a registered agent and the owner's Entros policy result. It does not establish legal ownership, population uniqueness, or hardware assurance.
-
-## Zero-GPL Solana readers (`@entros/verify/solana`)
-
-The React-free `@entros/verify/solana` subpath reads Solana devnet state using only permissive MIT dependencies (`@noble/curves` and `@noble/hashes`). It requires no `@solana/web3.js` or `@coral-xyz/anchor` runtime dependency and accepts a Solana RPC endpoint URL, a custom `fetch` config, or a duck-typed `Connection` instance.
-
-- `readIntegratorEvidence` and `findLatestVerificationTransaction` read confirmed Entros verification evidence, enforcing the 2-second slot-time tolerance, 15-second device clock catch-up, and 57-byte `MigrationRecord` checks.
-- `readAgentState` reads a Metaplex Core asset and its 8004 registry `AgentAccount` at one confirmed slot.
-- `verifyEntrosAttestation` fetches the SAS attestation, `IdentityState`, and `MigrationRecord` accounts in one batch.
-- `decodeIdentityState` and `readMigrationRecord` parse raw account buffers directly.
+## Quickstart: MCP `2026-07-28` Stateless MRTR Gate
 
 ```ts
-import { evaluatePolicy, normalizePolicyRequest } from "@entros/verify/policy";
-import { readIntegratorEvidence } from "@entros/verify/solana";
+import { createStatelessMcpApprovalGate } from "@entros/verify/mcp";
 
-const observation = await readIntegratorEvidence({
-  walletPubkey,
-  transactionSignature,
-  connection: "https://api.devnet.solana.com",
-  nowSeconds: () => Math.floor(Date.now() / 1000),
+const gate = createStatelessMcpApprovalGate({
+  audience: "https://mcp.acme-bank.example/v1/mcp",
+  policy,
+  jwks,
+  stateSecret: process.env.ENTROS_MRTR_SECRET!,
 });
-const result = evaluatePolicy(
-  normalizePolicyRequest(),
-  observation,
-  Math.floor(Date.now() / 1000),
-);
+
+// Round 1: return InputRequiredResult without exposing credentials to the LLM.
+const challenge = await gate.createInputRequiredResult({
+  action: {
+    kind: "mcp.tool_call",
+    server: "treasury-mcp",
+    tool: "transfer_funds",
+    arguments: { amount: 250, currency: "USD", recipient: "acct_9942" },
+  },
+});
+
+// Round 2: any stateless replica verifies requestState HMAC + permit + atomic jti.
+const verification = await gate.verifyInputResponse({
+  action: retriedAction,
+  requestState: retriedRequestState,
+  inputResponses: retriedInputResponses,
+});
 ```
 
-## MCP single-use approval adapter (`@entros/verify/mcp`)
+For `MCP 2025-11-25` clients, use `createUrlElicitationChallenge` (`SEP-1036`, `mode: "url"`) and `formatInsufficientScopeHeader` (`HTTP 403` scope-union). For Vercel AI SDK tools, use `createVercelToolApprovalGate` targeting `toolApproval: "user-approval"`.
 
-The React-free `@entros/verify/mcp` subpath wraps `@entros/verify/agent-permit`, `@entros/verify/policy`, and `@entros/verify/solana` into a pause-and-approve workflow for Model Context Protocol servers, OpenAI `mcp_approval_request` flows, and HumanLayer pause/resume callbacks.
+## Quickstart: Voice-AI Webhook Guards (LiveKit, Vapi, Retell)
 
-- `createMcpApprovalChallenge` binds `subject` (Core asset owner wallet), `actor` (8004 Metaplex Core asset and bound agent wallet), `audience`, canonical tool `action.sha256`, `policy`, `devnet`, and a lifetime up to 900 seconds.
-- `verifyMcpApprovalSettlement` validates permit structure, expiry, strict Ed25519 signatures, expected bindings, live Metaplex Core ownership, current Entros evidence, and policy rules before consuming the single-use nonce atomically through `McpNonceStore`. Failed attempts never burn a valid pending nonce.
-- `createChallengeFromOpenAiMcpRequest` and `settleOpenAiMcpApproval` adapt OpenAI `mcp_approval_request` and `mcp_approval_response` items.
-- `createHumanLayerApprovalCall` and `verifyHumanLayerApprovalCallback` adapt HumanLayer pause and resume webhooks.
+```ts
+import { createLiveKitToolGuard } from "@entros/verify/mcp";
 
-An owner-signed MCP approval preserves the original `verifiedAt` timestamp and `browser_unattested` assurance tier. It authorizes one later agent action and does not prove human presence when the agent executes that action.
+const guard = createLiveKitToolGuard({
+  server: "voice-banking",
+  audience: "https://mcp.acme-bank.example/v1/mcp",
+  policy,
+  jwks,
+});
 
-## Reference consumer
+const verdict = await guard.guardToolCall({
+  roomName: "bank_room_8831",
+  participantIdentity: "caller_01",
+  sessionId: "lk_room_bank_8831_caller_01",
+  toolName: "transfer_funds",
+  args: { amount: 250, currency: "USD" },
+  voiceVerdictJws: latestSessionVerdictJws,
+});
+```
 
-Run the [reference-consumer example](examples/reference-consumer) to test a standalone application built against published npm packages.
-It exercises warm policy reuse, Integrator Policy v1 settlement, Agent Operator Permit pause-and-approve, Realms voter-weight checks, and stage latency telemetry.
-For Realms governance, the plugin enforces `one eligible wallet, one vote` with current-slot expiry and migration-slot checks against each proposal.
-All demonstrations and tests run locally against synthetic devnet fixtures.
+Raw un-denoised audio should always be streamed to `/v1/voice/stream` before any neural denoiser or STT stage. When a session verdict returns `suspicious` or `insufficient_signal`, the guard returns `status: "step_up_required"` for hardware Passkey fallback.
 
-## Migration from `0.1.1`
+## Hardware Passkey Verification (`@entros/verify/permit` and `@entros/verify/react`)
 
-Version `0.2.0` changes the callback contract:
+Hardware FIDO2 authenticators emit ASN.1 DER ECDSA P-256 signatures with arbitrary `s` in `[1, n - 1]`, including high-S signatures (`s > n / 2`). `verifyWebAuthnAssertionV2` verifies DER signatures with `{ format: "der", lowS: false, prehash: true }` without any CBOR dependency and requires `UP=1` and `UV=1`.
 
-- Handle `attestationPda: null` when optional SAS issuance is missing or unavailable.
-- Read the required `policy` result for evaluated requirements, expiry, and evidence status.
-- Handle `onError` when the hosted popup lacks the policy contract or the returned evidence does not satisfy it.
+In React apps, render `<EntrosPasskeyApprove>` from `@entros/verify/react`:
 
-The popup retains transport envelope version `1` and negotiates the policy contract through separate request fields.
-The compatible popup supplies legacy consumers with their original payload types after a valid attestation exists and the requested score floor passes.
-A popup rollback makes upgraded consumers reject results until compatible service returns.
+```tsx
+import { EntrosPasskeyApprove } from "@entros/verify/react";
 
-## Limitations
+<EntrosPasskeyApprove
+  jti={challenge.metadata.jti}
+  requestDigest={challenge.metadata.request_digest}
+  rpId="approve.entros.io"
+  onApproved={(assertion) => submitAssertion(assertion)}
+/>;
+```
 
-- Devnet only. Mainnet support remains planned.
-- The browser callback reports the completed flow. Protected actions require the settlement checks above.
-- Integrator origins require the hosted allowlist. Self-serve onboarding remains planned.
-- Mobile browsers can open the popup in a new tab. This component does not implement native Mobile Wallet Adapter support.
+## Preserved v1 Solana Devnet and Browser Popup Surfaces
 
-## Integration safeguards
+- `@entros/verify/solana` provides zero-GPL Solana devnet chain readers (`readIntegratorEvidence`, `readAgentState`, `verifyEntrosAttestation`, `findLatestVerificationTransaction`).
+- `@entros/verify/policy` and `@entros/verify/agent-permit` remain byte-compatible with v1 devnet integrators.
+- `@entros/verify/react` retains `<EntrosVerify>` for the legacy devnet popup flow; `evaluateWarmPolicyReuse` stays exported from the headless root.
+- Legacy HumanLayer v1 exports in `@entros/verify/mcp` remain exported for backwards compatibility and are marked `@deprecated` following upstream discontinuation.
 
-- Checks the message origin against the configured popup origin.
-- Checks the popup window and per-popup `request_id`.
-- Rejects invalid, expired, or mismatched policy results.
-- Applies the parent timeout and handles popup blocking and cancellation.
+## Shared Cross-Language Parity Suite
+
+Deterministic fixtures under `spec/vectors/agent-permit-v2/` (excluded from npm tarballs) validate identical digests, signatures, and refusal codes across TypeScript (`vitest`), Python (`pytest`), and Rust (`cargo test`):
+
+- `jcs-vectors.json`: `RFC 8785` UTF-16 sorting (`U+1D11E` before `U+E000`), ES6 floats, lone-surrogate and depth-33 rejections.
+- `jws-eddsa-vectors.json`: Strict `zip215: false` EdDSA JWS checks, small-order key rejection, `S >= L` scalar rejection, forbidden headers, unknown/revoked `kid`, and `retention: "memory_only"`.
+- `webauthn-p256-vectors.json`: Low-S and high-S DER P-256 assertions, `UP`/`UV` flags, `rpIdHash`, origin, challenge, and `signCount` rollback checks.
+- `scitt-receipt-vectors.json`: Definite-length CBOR Tag `18` `COSE_Sign1` receipts (`headers 1, 4, 395, 396`) and `RFC 9162` Merkle inclusion proofs.
+- `policy-v2-vectors.json`: All 7 `assurance_tier` values, anti-downgrade refusals, freshness monotonicity, partial-spoof spans, consistency drift, DPoP `cnf.jkt`, non-mutating prechecks, and 32-way concurrent `jti` replay races.
+
+## Development and Verification
+
+```bash
+npm run typecheck
+npm test
+npm run check-licenses -- --clean-room
+npm run build
+npm run verify-publish-contents
+npm audit --omit=dev --audit-level=high
+```
 
 ## License
 

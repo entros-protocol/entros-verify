@@ -5,7 +5,7 @@ import {
   type EntrosVerifyError,
   type EntrosVerifyProgress,
   type EntrosVerifyResult,
-} from "@entros/verify";
+} from "@entros/verify/react";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 const POPUP_BASE_ORIGIN = "http://localhost:3000";

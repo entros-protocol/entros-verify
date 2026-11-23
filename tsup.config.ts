@@ -8,7 +8,6 @@ const nobleCompatAlias = {
   "@noble/curves/ed25519": nobleCompatPath,
   "@noble/hashes/sha2": "@noble/hashes/sha2.js",
 };
-
 const nobleCompatNoExternal = [
   /^@noble\/curves\/ed25519$/,
   /^@noble\/hashes\/sha2$/,
@@ -31,7 +30,34 @@ const nobleV1BridgePlugin: NonNullable<Options["esbuildPlugins"]>[number] = {
 // are minified but identifiers are not, so stack traces stay readable.
 export default defineConfig([
   {
-    entry: ["src/index.ts"],
+    entry: {
+      index: "src/index.ts",
+      voice: "src/voice/index.ts",
+      permit: "src/permit/index.ts",
+      mcp: "src/mcp/index.ts",
+      "browser-signals": "src/browser-signals/index.ts",
+      solana: "src/solana/index.ts",
+      policy: "src/policy.ts",
+      "agent-permit": "src/agent-permit.ts",
+    },
+    format: ["esm", "cjs"],
+    dts: true,
+    splitting: false,
+    sourcemap: false,
+    minifyWhitespace: true,
+    minifySyntax: true,
+    clean: false,
+    noExternal: nobleCompatNoExternal,
+    outDir: "dist",
+    esbuildPlugins: [nobleV1BridgePlugin],
+    esbuildOptions(options) {
+      options.alias = { ...options.alias, ...nobleCompatAlias };
+    },
+  },
+  {
+    entry: {
+      react: "src/react/index.ts",
+    },
     format: ["esm", "cjs"],
     dts: true,
     splitting: false,
@@ -46,31 +72,10 @@ export default defineConfig([
     esbuildOptions(options) {
       options.alias = { ...options.alias, ...nobleCompatAlias };
     },
-    // Inject "use client" so Next.js apps treat the component as client-only
-    // without consumers having to add the directive themselves.
+    // Inject "use client" solely on the optional React UI subpath so Next.js
+    // treats React components as client-only without polluting headless builds.
     banner: {
       js: '"use client";',
-    },
-  },
-  {
-    entry: {
-      policy: "src/policy.ts",
-      "agent-permit": "src/agent-permit.ts",
-      solana: "src/solana/index.ts",
-      mcp: "src/mcp/index.ts",
-    },
-    format: ["esm", "cjs"],
-    dts: true,
-    splitting: false,
-    sourcemap: false,
-    minifyWhitespace: true,
-    minifySyntax: true,
-    clean: false,
-    noExternal: nobleCompatNoExternal,
-    outDir: "dist",
-    esbuildPlugins: [nobleV1BridgePlugin],
-    esbuildOptions(options) {
-      options.alias = { ...options.alias, ...nobleCompatAlias };
     },
   },
 ]);

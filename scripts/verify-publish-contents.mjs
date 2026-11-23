@@ -2,23 +2,21 @@
 /**
  * Pre-publish gate. Runs automatically via the `prepublishOnly` npm lifecycle.
  *
- * Guards against the class of leaks where source trees, test fixtures, or
- * scripts get packed into the npm tarball alongside the public `dist/` build.
- * Mirrors the equivalent gate in `pulse-sdk` so the org has one shape.
+ * Guards against shipping source trees, Python SDK files, shared parity vectors,
+ * tests, source maps, or accidental React imports in headless entrypoints.
  *
- * Enforced invariants on package.json:
- *   1. `files` field must exist and be an array (allowlist, not denylist)
- *   2. `files` must include `dist`
- *   3. `files` must not include any of the forbidden entries below, nor
- *      a catch-all like `*` or `.`
- *
- * If someone removes the `files` field, widens it to `*`, or adds a forbidden
- * path, this script fails before npm uploads the tarball.
+ * Enforced invariants on package.json and dist/:
+ *   1. `files` field must exist and be an allowlist array containing `dist`
+ *   2. `files` must not include `src`, `test`, `scripts`, `python`, `spec`, etc.
+ *   3. Every required subpath export resolves to built files in `./dist/`
+ *   4. Zero `.map` files and zero `sourceMappingURL` references in `dist/`
+ *   5. `"use client"` banner appears on `dist/react.*` and never on headless entries
+ *   6. Headless entries never import `react` or `react-dom`
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
@@ -30,16 +28,36 @@ const FORBIDDEN_PATHS = [
   "test",
   "tests",
   "scripts",
+  "python",
+  "spec",
+  "example",
+  "examples",
+  ".agents",
   ".npmrc",
   "node_modules",
 ];
 
 const REQUIRED_EXPORTS = [
   ".",
+  "./voice",
+  "./permit",
+  "./mcp",
+  "./browser-signals",
+  "./solana",
   "./policy",
   "./agent-permit",
-  "./solana",
-  "./mcp",
+  "./react",
+];
+
+const HEADLESS_ENTRIES = [
+  "index",
+  "voice",
+  "permit",
+  "mcp",
+  "browser-signals",
+  "solana",
+  "policy",
+  "agent-permit",
 ];
 
 const errors = [];
@@ -47,7 +65,7 @@ const errors = [];
 if (!Array.isArray(pkg.files)) {
   errors.push(
     "package.json must define a 'files' allowlist. Without it, npm publish " +
-      "ships every non-gitignored path including src/ and test/.",
+      "ships every non-gitignored path including src/, python/, and spec/.",
   );
 } else {
   if (!pkg.files.includes("dist")) {
@@ -73,7 +91,11 @@ if (!Array.isArray(pkg.files)) {
   }
 }
 
-if (!pkg.exports || typeof pkg.exports !== "object" || Array.isArray(pkg.exports)) {
+if (
+  !pkg.exports ||
+  typeof pkg.exports !== "object" ||
+  Array.isArray(pkg.exports)
+) {
   errors.push("package.json must define an 'exports' map.");
 } else {
   const distDir = resolve(rootDir, "dist");
@@ -100,6 +122,14 @@ if (!pkg.exports || typeof pkg.exports !== "object" || Array.isArray(pkg.exports
             `Built artifact missing for '${subpath}' (${condition}): ${value}.`,
           );
         }
+        if (condition === "types") {
+          const dmtsPath = artifactPath.replace(/\.d\.ts$/, ".d.mts");
+          if (!existsSync(dmtsPath)) {
+            errors.push(
+              `Built ESM declaration missing for '${subpath}': ${dmtsPath}.`,
+            );
+          }
+        }
       }
     }
   }
@@ -120,6 +150,35 @@ if (!pkg.exports || typeof pkg.exports !== "object" || Array.isArray(pkg.exports
         }
       }
     }
+
+    for (const name of HEADLESS_ENTRIES) {
+      for (const ext of [".mjs", ".js"]) {
+        const artifactPath = resolve(distDir, `${name}${ext}`);
+        if (!existsSync(artifactPath)) continue;
+        const contents = readFileSync(artifactPath, "utf-8");
+        if (contents.startsWith('"use client"') || contents.startsWith("'use client'")) {
+          errors.push(
+            `Headless entrypoint dist/${name}${ext} must not emit a "use client" banner.`,
+          );
+        }
+        if (/from\s*["']react(?:-dom|\/jsx-runtime)?["']|require\(\s*["']react(?:-dom|\/jsx-runtime)?["']\s*\)/.test(contents)) {
+          errors.push(
+            `Headless entrypoint dist/${name}${ext} must not import React.`,
+          );
+        }
+      }
+    }
+
+    for (const ext of [".mjs", ".js"]) {
+      const reactPath = resolve(distDir, `react${ext}`);
+      if (!existsSync(reactPath)) continue;
+      const contents = readFileSync(reactPath, "utf-8");
+      if (!contents.startsWith('"use client";')) {
+        errors.push(
+          `React entrypoint dist/react${ext} must start with '"use client";'.`,
+        );
+      }
+    }
   }
 }
 
@@ -132,4 +191,6 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log("prepublish content gate OK: package.json files allowlist is safe.");
+console.log(
+  "prepublish content gate OK: package.json files allowlist, 9 subpath exports, and headless boundaries verified.",
+);
