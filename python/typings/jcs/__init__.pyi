@@ -1,0 +1,6 @@
+from typing import Literal, overload
+
+@overload
+def canonicalize(obj: object, utf8: Literal[True] = ...) -> bytes: ...
+@overload
+def canonicalize(obj: object, utf8: Literal[False]) -> str: ...

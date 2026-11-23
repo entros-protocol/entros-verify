@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pipecat-entros"
+version = "1.0.0"
+description = "First-party Pipecat FrameProcessor tapping raw InputAudioRawFrame for Entros voice liveness and gating FunctionCallInProgressFrame with AgentPermit v2."
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Entros Protocol" },
+]
+dependencies = [
+  "entros-verify==1.0.0",
+]
+
+[project.optional-dependencies]
+pipecat = [
+  "pipecat-ai>=0.0.60",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pipecat_entros"]
