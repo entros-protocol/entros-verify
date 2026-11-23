@@ -1,0 +1,1796 @@
+{
+  "schema_version": 2,
+  "all_assurance_tiers": [
+    "voice_liveness_webrtc",
+    "voice_liveness_telephony",
+    "passkey_webauthn_uv",
+    "voice_plus_passkey",
+    "passive_browser_risk",
+    "hardware_attested_mobile",
+    "browser_unattested"
+  ],
+  "jwks": {
+    "keys": [
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "use": "sig",
+        "alg": "EdDSA",
+        "kid": "entros-voice-2026-11-a",
+        "x": "hjfsQI9WQ7u6qGzH9_JRbOv33HKc-g0mUV66ROOX6bI"
+      },
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "use": "sig",
+        "alg": "EdDSA",
+        "kid": "entros-permit-2026-11-a",
+        "x": "WqoSltnYpJg1XevkxMFHjoNlpRMnidAbVGLHUULRe0g"
+      },
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "use": "sig",
+        "alg": "EdDSA",
+        "kid": "entros-scitt-2026-11-a",
+        "x": "LQG4N-2CEHwUrcPZ3EB4kw06vnNKYDhtSd96GhZUENE"
+      },
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "use": "sig",
+        "alg": "EdDSA",
+        "kid": "entros-revoked-2026-11-a",
+        "status": "revoked",
+        "x": "fAe0Jj5g66AZHU6-gjQV3-dNYcNtqpQh3sFMUgfL1kc"
+      },
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "use": "sig",
+        "alg": "EdDSA",
+        "kid": "entros-small-order-test",
+        "x": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "use": "sig",
+        "alg": "EdDSA",
+        "kid": "entros-order8-test",
+        "x": "xxdqcD1N2E-6PAt2DRBnDyogU_osOczGTsf9d5KsA3o"
+      }
+    ]
+  },
+  "dpop_public_jwk": {
+    "crv": "P-256",
+    "kty": "EC",
+    "x": "uP_9yC4ys6yQdJwxG0fbsY0SO9ecpqaMgX79DkPXvG4",
+    "y": "_mXk8MGyIsz7Z3hbLcKp9BFSLnxe-D3Y3wAfNQ8SkyQ"
+  },
+  "dpop_jkt": "uBzDGJf8sjJvoQdljqnf0YeNDxrtIU0VRc55r973mF4",
+  "cases": [
+    {
+      "id": "allow-voice-plus-passkey-dpop-scitt",
+      "description": "Full high-assurance voice_plus_passkey permit with valid VoiceLivenessVerdict, WebAuthn low-S, DPoP, and SCITT",
+      "policy": {
+        "policy_id": "wire-transfer-high-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_plus_passkey",
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": true,
+        "require_scitt_receipt": true,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+      "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoidVBfOXlDNHlzNnlRZEp3eEcwZmJzWTBTTzllY3BxYU1nWDc5RGtQWHZHNCIsInkiOiJfbVhrOE1HeUlzejdaM2hiTGNLcDlCRlNMbnhlLUQzWTN3QWZOUThTa3lRIn19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiI4WTVaM0RfbzZmNDc5V0V6V3hRNDdvZ2ZnYmZ6ZFhnWlhwR0tnVEpVUzE4In0.96Owgi2MXaZGyv1twK7HWVJEfN1ceIZc-w0E0KFKn-YsN4Jqx3tNB8TdJsnC1rd_wW6X8BsKlmu8BlrbkMEAZg",
+      "dpop_htm": "POST",
+      "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+      "expected_decision": "allow",
+      "expected_reason": "accepted"
+    },
+    {
+      "id": "allow-voice-liveness-webrtc",
+      "description": "Valid voice_liveness_webrtc permit with webrtc_16k voice verdict",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZDJWaWNuUmpYekUyYXlJc0ltMXZaR1ZzWDNabGNuTnBiMjRpT2lJd09HRTNaV0ZsT0RNMk9EazJNR1JoTjJZd01qVXhaamRtTWpsaVptVmhNelV5T1RoaE0yUmhNR0kyTVRVME56Z3daV0kzTm1VNFl6Z3hPVE0yT1dGbUlpd2ljMmxuYm1Gc1gzRjFZV3hwZEhraU9uc2ljMjV5WDJSaUlqb3lOQzQyTENKemNHVmxZMmhmYlhNaU9qSXlOREFzSW1Oc2FYQndhVzVuSWpvd0xqQXdNRFFzSW1OdlpHVmpYMkpoYm1SM2FXUjBhRjlvZWlJNk9EQXdNSDBzSW5CaGNuUnBZV3hmYzNCdmIyWmZjM0JoYm5NaU9sdGRMQ0pqYjI1emFYTjBaVzVqZVY5a2NtbG1kQ0k2ZXlKemRHRjBkWE1pT2lKbGRtRnNkV0YwWldRaUxDSjNhVzVrYjNkelgyVjJZV3gxWVhSbFpDSTZOQ3dpWm14dmIzSmZjM0J5WldGa1gyUmlJam94TGpnc0luUmhhV3hmWkdWallYbGZjM0J5WldGa1gyUmlJam95TGpFc0luTndaV04wY21Gc1gzUnBiSFJmWkhKcFpuUWlPakF1T1N3aWNtVmhjMjl1SWpwdWRXeHNmU3dpWVdKemRHRnBibDl5WldGemIyNGlPbTUxYkd3c0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SW4wLk9XV2lCSVdsZkZkZmJyTXVQTDlrcVM2X1J3UGRUT0hOZEIzOTFiZnhNdmVlR19qYVBxcEU2Q2I2aGpicENRRnZmU0ZSLW5uUDZUdjhObzdwQWNsSEJ3Iiwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6bnVsbCwicG9saWN5X2lkIjoidm9pY2Utd2VicnRjLXYyIiwic2NpdHRfcmVjZWlwdCI6bnVsbH0.pnuq3FR0f7TIj16wF8DVNoL3vR0oCbOQHsh0AlRG6BcfAa35ulF0ZfOF8Iuu6KINwYlwGV_t5jEOPbAscejJAg",
+      "expected_decision": "allow",
+      "expected_reason": "accepted"
+    },
+    {
+      "id": "allow-voice-liveness-telephony",
+      "description": "Valid voice_liveness_telephony permit with telephony_8k voice verdict",
+      "policy": {
+        "policy_id": "voice-telephony-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_telephony"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3RlbGVwaG9ueSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZEdWc1pYQm9iMjU1WHpocklpd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p6YVdkdVlXeGZjWFZoYkdsMGVTSTZleUp6Ym5KZlpHSWlPakU0TGpJc0luTndaV1ZqYUY5dGN5STZNakV3TUN3aVkyeHBjSEJwYm1jaU9qQXVNREF4TENKamIyUmxZMTlpWVc1a2QybGtkR2hmYUhvaU9qTTBNREI5TENKd1lYSjBhV0ZzWDNOd2IyOW1YM053WVc1eklqcGJYU3dpWTI5dWMybHpkR1Z1WTNsZlpISnBablFpT25zaWMzUmhkSFZ6SWpvaVpYWmhiSFZoZEdWa0lpd2lkMmx1Wkc5M2MxOWxkbUZzZFdGMFpXUWlPalFzSW1ac2IyOXlYM053Y21WaFpGOWtZaUk2TVM0NExDSjBZV2xzWDJSbFkyRjVYM053Y21WaFpGOWtZaUk2TWk0eExDSnpjR1ZqZEhKaGJGOTBhV3gwWDJSeWFXWjBJam93TGprc0luSmxZWE52YmlJNmJuVnNiSDBzSW1GaWMzUmhhVzVmY21WaGMyOXVJanB1ZFd4c0xDSnlaWFJsYm5ScGIyNGlPaUp0WlcxdmNubGZiMjVzZVNKOS5xQ0ZkQXZpRTRiU0htUms2SWxieVFWNndzTF9iVV9oSHhYU21ic28yQW9FVE9VaER2T1hmcnIya1pJa1NNTGRhS1FKZHc3S0UxSFRyc0I4S1IwR01EZyIsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOm51bGwsInBvbGljeV9pZCI6InZvaWNlLXRlbGVwaG9ueS12MiIsInNjaXR0X3JlY2VpcHQiOm51bGx9.9dK-JVJM0vLkQk4h52nfea-Gqtg9aVkfzg1dkRgfkqGR-MJ_fdVIyR0mDiBwrTIdAKZhxxz91c-XNlgiZROADQ",
+      "expected_decision": "allow",
+      "expected_reason": "accepted"
+    },
+    {
+      "id": "allow-passkey-webauthn-uv-only",
+      "description": "Valid headless passkey_webauthn_uv permit with no voice channel",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6Im1jcF9zdGF0ZWxlc3NfMDEiLCJtb2RlIjoic3RlcF91cF9vbmx5IiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjpmYWxzZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6bnVsbCwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6IjhjYmM4MDI3MmIwMDI1ZjI3N2NkMzFhY2JhZWIwZDdhYWU1ZTRlM2M2YmNjYjlmZWFjNDg1NDE0MDhjMzVkNjEiLCJwb2xpY3lfaWQiOiJtY3AtcGFzc2tleS12MiIsInNjaXR0X3JlY2VpcHQiOm51bGx9.Ib1ja_sJUvrX-168BOiVCjQq8VrRo-P-5wJhGXBdXQpJ-hkXWEULf2iCDy74T7i7cgmfGzOLPVwLRiq8cAmfAg",
+      "expected_decision": "allow",
+      "expected_reason": "accepted"
+    },
+    {
+      "id": "deny-downgrade-passive-browser-risk",
+      "description": "passive_browser_risk never satisfies passkey_webauthn_uv policy",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NpdmVfYnJvd3Nlcl9yaXNrIiwibW9kYWxpdHkiOlsicGFzc2l2ZV9icm93c2VyX3Jpc2siXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjpudWxsLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjpudWxsLCJwb2xpY3lfaWQiOiJtY3AtcGFzc2tleS12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.iKfUfGvlzNeI59uLXeF528EZp6BashAE7g4liAwvihOCx49Zx-vCZP-jRQthma6IgkTWAikno3FdGipS1XdjCw",
+      "expected_decision": "deny",
+      "expected_reason": "assurance_downgrade"
+    },
+    {
+      "id": "deny-downgrade-browser-unattested",
+      "description": "browser_unattested never satisfies voice_liveness_webrtc policy",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6ImJyb3dzZXJfdW5hdHRlc3RlZCIsIm1vZGFsaXR5IjpbImJyb3dzZXJfdW5hdHRlc3RlZCJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOm51bGwsInBvbGljeV9pZCI6InZvaWNlLXdlYnJ0Yy12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.ovrEHduiVnpXo2F05Ah80WbuCZbSdHVprUHvz5cP8SRyDZssiUImRmj0Wc3c3zHqSIG9eqceTb4mQ1ji25KaBg",
+      "expected_decision": "deny",
+      "expected_reason": "assurance_downgrade"
+    },
+    {
+      "id": "deny-downgrade-hardware-attested-mobile",
+      "description": "hardware_attested_mobile rejected when absent from allowed_assurance_tiers",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6ImhhcmR3YXJlX2F0dGVzdGVkX21vYmlsZSIsIm1vZGFsaXR5IjpbIndlYmF1dGhuX3V2Il0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6bnVsbCwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6IjhjYmM4MDI3MmIwMDI1ZjI3N2NkMzFhY2JhZWIwZDdhYWU1ZTRlM2M2YmNjYjlmZWFjNDg1NDE0MDhjMzVkNjEiLCJwb2xpY3lfaWQiOiJtY3AtcGFzc2tleS12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.gCJ7yEw4J1GYW-7zWIp7osBRg704OUuUCUF7j70RbW6H12vjPr95epw96mxcVtBsOZWcbWXC7yV8v7ZwGlnHAQ",
+      "expected_decision": "deny",
+      "expected_reason": "assurance_downgrade"
+    },
+    {
+      "id": "deny-downgrade-telephony-for-webrtc",
+      "description": "voice_liveness_telephony rejected when policy allows only voice_liveness_webrtc",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3RlbGVwaG9ueSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZEdWc1pYQm9iMjU1WHpocklpd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p6YVdkdVlXeGZjWFZoYkdsMGVTSTZleUp6Ym5KZlpHSWlPakU0TGpJc0luTndaV1ZqYUY5dGN5STZNakV3TUN3aVkyeHBjSEJwYm1jaU9qQXVNREF4TENKamIyUmxZMTlpWVc1a2QybGtkR2hmYUhvaU9qTTBNREI5TENKd1lYSjBhV0ZzWDNOd2IyOW1YM053WVc1eklqcGJYU3dpWTI5dWMybHpkR1Z1WTNsZlpISnBablFpT25zaWMzUmhkSFZ6SWpvaVpYWmhiSFZoZEdWa0lpd2lkMmx1Wkc5M2MxOWxkbUZzZFdGMFpXUWlPalFzSW1ac2IyOXlYM053Y21WaFpGOWtZaUk2TVM0NExDSjBZV2xzWDJSbFkyRjVYM053Y21WaFpGOWtZaUk2TWk0eExDSnpjR1ZqZEhKaGJGOTBhV3gwWDJSeWFXWjBJam93TGprc0luSmxZWE52YmlJNmJuVnNiSDBzSW1GaWMzUmhhVzVmY21WaGMyOXVJanB1ZFd4c0xDSnlaWFJsYm5ScGIyNGlPaUp0WlcxdmNubGZiMjVzZVNKOS5xQ0ZkQXZpRTRiU0htUms2SWxieVFWNndzTF9iVV9oSHhYU21ic28yQW9FVE9VaER2T1hmcnIya1pJa1NNTGRhS1FKZHc3S0UxSFRyc0I4S1IwR01EZyIsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoidm9pY2Utd2VicnRjLXYyIiwic2NpdHRfcmVjZWlwdCI6IjBvUllINk1CSndSV1pXNTBjbTl6TFhOamFYUjBMVEl3TWpZdE1URXRZUmtCaXdHaEdRR01vU0NEQlFPRFdDQlUzV2t3bElrLXZjT1Y2eW1SVjJ4UUdQeEpuLUNRR2NrVGJRc1ZKb2xaTkZnZy05eFMzcWNIN1BRM1ZHcnd4aFFtM0dFOVo4RE1GRFM5WFJoblZCZWd3QTlZSU0wcVV6M0dBQ2gxSWYyUE9adEkyV082WGJLT0YxRnA4NWpnSzdsc3pJX2tXUUkwZXlKaGMzTjFjbUZ1WTJWZmRHbGxjaUk2SW5admFXTmxYM0JzZFhOZmNHRnpjMnRsZVNJc0ltRjFaQ0k2SW1oMGRIQnpPaTh2YldOd0xtRmpiV1V0WW1GdWF5NWxlR0Z0Y0d4bEwzWXhMMjFqY0NJc0ltUmxZMmx6YVc5dUlqb2lZV3hzYjNjaUxDSmxkbUZzZFdGMFpXUmZZWFFpT2pFM09UVTBOVEF4TVRBc0ltWnlaWE5vYm1WemMxOTJaWEpwWm1sbFpGOWhkQ0k2TVRjNU5UUTFNREV3TUN3aWFuUnBJam9pTkdZNFl6SmhNVGxrTjJVek5HSTJNRGd4WVRWak9XVXdNbVl6WWpSa05XVTJZVGRpT0dNNVpEQmxNV1l5WVROaU5HTTFaRFpsTjJZNE1Ea3hZVEppTXlJc0ltMXZaR0ZzYVhSNUlqcGJJblp2YVdObFgyeHBkbVZ1WlhOeklpd2lkMlZpWVhWMGFHNWZkWFlpWFN3aWJXOWtaV3hmZG1WeWMybHZiaUk2SWpBNFlUZGxZV1U0TXpZNE9UWXdaR0UzWmpBeU5URm1OMll5T1dKbVpXRXpOVEk1T0dFelpHRXdZall4TlRRM09EQmxZamMyWlRoak9ERTVNelk1WVdZaUxDSndiMnhwWTNsZmFXUWlPaUozYVhKbExYUnlZVzV6Wm1WeUxXaHBaMmd0ZGpJaUxDSnlaV0Z6YjI0aU9pSmhZMk5sY0hSbFpDSXNJbkpsY1hWbGMzUmZaR2xuWlhOMElqb2lORFpqWTJVell6ZzFOV1poWkRnMFpXRTJObVJqTURNNE9EUm1PRE5tT0RNMlkySmlNVGRqWmpreE56RmxOREZsWTJJd056ZzVaalUxT0RJMk5XSmxOQ0lzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJaXdpYzJOb1pXMWhJam9pWlc1MGNtOXpMWE5qYVhSMExYQmxjbTFwZEMxMk1pSjlXRUNyVlc1aS1pdjIzUHVCdGh0S2c4LVRyU0RzdGFUZWNaemtCZzhxci1SbnNpYm5xY284VWQ0ZmQwdlRBZzZ3VlhTUHJLWmFfaVhwZkNKb3NfRlpsX3NKIiwiY25mIjp7ImprdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifX0.0t6WxufZQDwSqSSWLA7oEngKzkGHK6tqAQoQFKmGUB3yIkP3UZ50HhPDDkZbo1_48lxw5JX2W5KAIhCaXw-YCg",
+      "expected_decision": "deny",
+      "expected_reason": "assurance_downgrade"
+    },
+    {
+      "id": "deny-downgrade-voice-only-for-voice-plus-passkey",
+      "description": "voice_liveness_webrtc alone rejected when policy requires voice_plus_passkey",
+      "policy": {
+        "policy_id": "voice-plus-passkey-strict-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_plus_passkey"
+        ],
+        "required_modalities": [
+          "voice_liveness",
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZDJWaWNuUmpYekUyYXlJc0ltMXZaR1ZzWDNabGNuTnBiMjRpT2lJd09HRTNaV0ZsT0RNMk9EazJNR1JoTjJZd01qVXhaamRtTWpsaVptVmhNelV5T1RoaE0yUmhNR0kyTVRVME56Z3daV0kzTm1VNFl6Z3hPVE0yT1dGbUlpd2ljMmxuYm1Gc1gzRjFZV3hwZEhraU9uc2ljMjV5WDJSaUlqb3lOQzQyTENKemNHVmxZMmhmYlhNaU9qSXlOREFzSW1Oc2FYQndhVzVuSWpvd0xqQXdNRFFzSW1OdlpHVmpYMkpoYm1SM2FXUjBhRjlvZWlJNk9EQXdNSDBzSW5CaGNuUnBZV3hmYzNCdmIyWmZjM0JoYm5NaU9sdGRMQ0pqYjI1emFYTjBaVzVqZVY5a2NtbG1kQ0k2ZXlKemRHRjBkWE1pT2lKbGRtRnNkV0YwWldRaUxDSjNhVzVrYjNkelgyVjJZV3gxWVhSbFpDSTZOQ3dpWm14dmIzSmZjM0J5WldGa1gyUmlJam94TGpnc0luUmhhV3hmWkdWallYbGZjM0J5WldGa1gyUmlJam95TGpFc0luTndaV04wY21Gc1gzUnBiSFJmWkhKcFpuUWlPakF1T1N3aWNtVmhjMjl1SWpwdWRXeHNmU3dpWVdKemRHRnBibDl5WldGemIyNGlPbTUxYkd3c0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SW4wLk9XV2lCSVdsZkZkZmJyTXVQTDlrcVM2X1J3UGRUT0hOZEIzOTFiZnhNdmVlR19qYVBxcEU2Q2I2aGpicENRRnZmU0ZSLW5uUDZUdjhObzdwQWNsSEJ3Iiwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6bnVsbCwicG9saWN5X2lkIjoidm9pY2UtcGx1cy1wYXNza2V5LXN0cmljdC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.auUOpi9qlWc5xB37mLRM4gsShCsqKi9984WZS2lmf6qfNiuvFc8TkJ9scOmjwaAD8_r2S_zfVwyejFcRZjvUDw",
+      "expected_decision": "deny",
+      "expected_reason": "assurance_downgrade"
+    },
+    {
+      "id": "deny-downgrade-passkey-only-for-voice-plus-passkey",
+      "description": "passkey_webauthn_uv alone rejected when policy requires voice_plus_passkey",
+      "policy": {
+        "policy_id": "voice-plus-passkey-strict-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_plus_passkey"
+        ],
+        "required_modalities": [
+          "voice_liveness",
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoidm9pY2UtcGx1cy1wYXNza2V5LXN0cmljdC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19._y2PV64z9A5TA4xOnBAvj0-3KIkHhY-DrC6of7EK8V1ERxkBryIseoJRIulZRR1OjeTu6IcQ1rmg5okin6U8CA",
+      "expected_decision": "deny",
+      "expected_reason": "assurance_downgrade"
+    },
+    {
+      "id": "deny-lifetime-exceeded-over-900",
+      "description": "exp - iat > 900 seconds rejected with lifetime_exceeded",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUxMDExLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.XgJ2Qok-54UeUI5vJcQVjSxjzFb1Hau2oKdOPM_q2iUhzJLWyOsf0qz_qjI5Ai8pm8n66jXbO9CHsU1X4W2-CA",
+      "expected_decision": "deny",
+      "expected_reason": "lifetime_exceeded"
+    },
+    {
+      "id": "deny-lifetime-under-30",
+      "description": "exp - iat < 30 seconds rejected with lifetime_exceeded",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450120,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwMTM5LCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.7s72XGK_RpVGOualw_0ySLQb_gk8OLpgoFiy8Lw9gAOVdgiryhG7Bb7tOSM6rCA-IAWmwxE_vDtIc3eb7irAAw",
+      "expected_decision": "deny",
+      "expected_reason": "lifetime_exceeded"
+    },
+    {
+      "id": "deny-clock-skew-exceeded",
+      "description": "iat > now + 30 rejected with clock_skew_exceeded",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450079,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.UbVQN7yg7K0vvUSCzadcDi1TkwBg56Iq6dppdRhcE-lJGNX49HAema3TuRlpCUjVMX7BBJCbBtr-3sh8vVktCw",
+      "expected_decision": "deny",
+      "expected_reason": "clock_skew_exceeded"
+    },
+    {
+      "id": "deny-permit-expired",
+      "description": "now >= exp rejected with permit_expired",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450410,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.UbVQN7yg7K0vvUSCzadcDi1TkwBg56Iq6dppdRhcE-lJGNX49HAema3TuRlpCUjVMX7BBJCbBtr-3sh8vVktCw",
+      "expected_decision": "deny",
+      "expected_reason": "permit_expired"
+    },
+    {
+      "id": "deny-audience-mismatch",
+      "description": "Cross-server aud URI mismatch rejected with audience_mismatch",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://other.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.UbVQN7yg7K0vvUSCzadcDi1TkwBg56Iq6dppdRhcE-lJGNX49HAema3TuRlpCUjVMX7BBJCbBtr-3sh8vVktCw",
+      "expected_decision": "deny",
+      "expected_reason": "audience_mismatch"
+    },
+    {
+      "id": "deny-audience-invalid-grammar",
+      "description": "Non-HTTPS non-loopback aud URI fails canonical URI grammar with audience_mismatch",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "http://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cDovL21jcC5hY21lLWJhbmsuZXhhbXBsZS92MS9tY3AiLCJqdGkiOiI0ZjhjMmExOWQ3ZTM0YjYwODFhNWM5ZTAyZjNiNGQ1ZTZhN2I4YzlkMGUxZjJhM2I0YzVkNmU3ZjgwOTFhMmIzIiwiaWF0IjoxNzk1NDUwMTEwLCJleHAiOjE3OTU0NTA0MTAsInJlcXVlc3RfZGlnZXN0IjoiNDZjY2UzYzg1NWZhZDg0ZWE2NmRjMDM4ODRmODNmODM2Y2JiMTdjZjkxNzFlNDFlY2IwNzg5ZjU1ODI2NWJlNCIsImFzc3VyYW5jZV90aWVyIjoicGFzc2tleV93ZWJhdXRobl91diIsIm1vZGFsaXR5IjpbIndlYmF1dGhuX3V2Il0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6bnVsbCwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6IjhjYmM4MDI3MmIwMDI1ZjI3N2NkMzFhY2JhZWIwZDdhYWU1ZTRlM2M2YmNjYjlmZWFjNDg1NDE0MDhjMzVkNjEiLCJwb2xpY3lfaWQiOiJtY3AtcGFzc2tleS12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.Y7AusmiULfEpVRax93Nr6dzltaY44o1sQeH2GfROMfikC5bgauyw-OAYKcPQuhSbeaashGURdkC5cjWW1oXNAA",
+      "expected_decision": "deny",
+      "expected_reason": "audience_mismatch"
+    },
+    {
+      "id": "deny-request-digest-mismatch",
+      "description": "Prompt-injected amount 25000 fails request_digest_mismatch against signed 250",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 25000,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.UbVQN7yg7K0vvUSCzadcDi1TkwBg56Iq6dppdRhcE-lJGNX49HAema3TuRlpCUjVMX7BBJCbBtr-3sh8vVktCw",
+      "expected_decision": "deny",
+      "expected_reason": "request_digest_mismatch"
+    },
+    {
+      "id": "deny-policy-mismatch",
+      "description": "Permit policy_id differs from consumer policy_id",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoic29tZS1vdGhlci1wb2xpY3ktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.IW0Kq1ep78qYiqGW2CZ7M7HyS_kZP8Ktwwyz29oFacgfafxdGpcGVwoFZp1Lx4nrqSjSgTU6YcAnpQZ9tI2FAw",
+      "expected_decision": "deny",
+      "expected_reason": "policy_mismatch"
+    },
+    {
+      "id": "deny-modality-missing",
+      "description": "Permit missing required modality fails modality_missing",
+      "policy": {
+        "policy_id": "voice-plus-passkey-strict-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_plus_passkey"
+        ],
+        "required_modalities": [
+          "voice_liveness",
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZDJWaWNuUmpYekUyYXlJc0ltMXZaR1ZzWDNabGNuTnBiMjRpT2lJd09HRTNaV0ZsT0RNMk9EazJNR1JoTjJZd01qVXhaamRtTWpsaVptVmhNelV5T1RoaE0yUmhNR0kyTVRVME56Z3daV0kzTm1VNFl6Z3hPVE0yT1dGbUlpd2ljMmxuYm1Gc1gzRjFZV3hwZEhraU9uc2ljMjV5WDJSaUlqb3lOQzQyTENKemNHVmxZMmhmYlhNaU9qSXlOREFzSW1Oc2FYQndhVzVuSWpvd0xqQXdNRFFzSW1OdlpHVmpYMkpoYm1SM2FXUjBhRjlvZWlJNk9EQXdNSDBzSW5CaGNuUnBZV3hmYzNCdmIyWmZjM0JoYm5NaU9sdGRMQ0pqYjI1emFYTjBaVzVqZVY5a2NtbG1kQ0k2ZXlKemRHRjBkWE1pT2lKbGRtRnNkV0YwWldRaUxDSjNhVzVrYjNkelgyVjJZV3gxWVhSbFpDSTZOQ3dpWm14dmIzSmZjM0J5WldGa1gyUmlJam94TGpnc0luUmhhV3hmWkdWallYbGZjM0J5WldGa1gyUmlJam95TGpFc0luTndaV04wY21Gc1gzUnBiSFJmWkhKcFpuUWlPakF1T1N3aWNtVmhjMjl1SWpwdWRXeHNmU3dpWVdKemRHRnBibDl5WldGemIyNGlPbTUxYkd3c0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SW4wLk9XV2lCSVdsZkZkZmJyTXVQTDlrcVM2X1J3UGRUT0hOZEIzOTFiZnhNdmVlR19qYVBxcEU2Q2I2aGpicENRRnZmU0ZSLW5uUDZUdjhObzdwQWNsSEJ3Iiwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6IjhjYmM4MDI3MmIwMDI1ZjI3N2NkMzFhY2JhZWIwZDdhYWU1ZTRlM2M2YmNjYjlmZWFjNDg1NDE0MDhjMzVkNjEiLCJwb2xpY3lfaWQiOiJ2b2ljZS1wbHVzLXBhc3NrZXktc3RyaWN0LXYyIiwic2NpdHRfcmVjZWlwdCI6IjBvUllINk1CSndSV1pXNTBjbTl6TFhOamFYUjBMVEl3TWpZdE1URXRZUmtCaXdHaEdRR01vU0NEQlFPRFdDQlUzV2t3bElrLXZjT1Y2eW1SVjJ4UUdQeEpuLUNRR2NrVGJRc1ZKb2xaTkZnZy05eFMzcWNIN1BRM1ZHcnd4aFFtM0dFOVo4RE1GRFM5WFJoblZCZWd3QTlZSU0wcVV6M0dBQ2gxSWYyUE9adEkyV082WGJLT0YxRnA4NWpnSzdsc3pJX2tXUUkwZXlKaGMzTjFjbUZ1WTJWZmRHbGxjaUk2SW5admFXTmxYM0JzZFhOZmNHRnpjMnRsZVNJc0ltRjFaQ0k2SW1oMGRIQnpPaTh2YldOd0xtRmpiV1V0WW1GdWF5NWxlR0Z0Y0d4bEwzWXhMMjFqY0NJc0ltUmxZMmx6YVc5dUlqb2lZV3hzYjNjaUxDSmxkbUZzZFdGMFpXUmZZWFFpT2pFM09UVTBOVEF4TVRBc0ltWnlaWE5vYm1WemMxOTJaWEpwWm1sbFpGOWhkQ0k2TVRjNU5UUTFNREV3TUN3aWFuUnBJam9pTkdZNFl6SmhNVGxrTjJVek5HSTJNRGd4WVRWak9XVXdNbVl6WWpSa05XVTJZVGRpT0dNNVpEQmxNV1l5WVROaU5HTTFaRFpsTjJZNE1Ea3hZVEppTXlJc0ltMXZaR0ZzYVhSNUlqcGJJblp2YVdObFgyeHBkbVZ1WlhOeklpd2lkMlZpWVhWMGFHNWZkWFlpWFN3aWJXOWtaV3hmZG1WeWMybHZiaUk2SWpBNFlUZGxZV1U0TXpZNE9UWXdaR0UzWmpBeU5URm1OMll5T1dKbVpXRXpOVEk1T0dFelpHRXdZall4TlRRM09EQmxZamMyWlRoak9ERTVNelk1WVdZaUxDSndiMnhwWTNsZmFXUWlPaUozYVhKbExYUnlZVzV6Wm1WeUxXaHBaMmd0ZGpJaUxDSnlaV0Z6YjI0aU9pSmhZMk5sY0hSbFpDSXNJbkpsY1hWbGMzUmZaR2xuWlhOMElqb2lORFpqWTJVell6ZzFOV1poWkRnMFpXRTJObVJqTURNNE9EUm1PRE5tT0RNMlkySmlNVGRqWmpreE56RmxOREZsWTJJd056ZzVaalUxT0RJMk5XSmxOQ0lzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJaXdpYzJOb1pXMWhJam9pWlc1MGNtOXpMWE5qYVhSMExYQmxjbTFwZEMxMk1pSjlXRUNyVlc1aS1pdjIzUHVCdGh0S2c4LVRyU0RzdGFUZWNaemtCZzhxci1SbnNpYm5xY284VWQ0ZmQwdlRBZzZ3VlhTUHJLWmFfaVhwZkNKb3NfRlpsX3NKIiwiY25mIjp7ImprdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifX0.qoBrrO5CeqDFaIGtHllyCMiCOu5Vi9o6aZAjyIv0UHgXE53-GuwUXzNbsq5JpWRP-ZFXU2zro8Lx7C1q5jlODA",
+      "expected_decision": "deny",
+      "expected_reason": "modality_missing"
+    },
+    {
+      "id": "deny-freshness-regression-gt-iat",
+      "description": "freshness_verified_at > iat rejected with freshness_regression",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMTEsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.XKozJiGj4qs_T3E8Qf43Iy43wBP2tKFzI1dQ3P3YsIasHFalMynugiSu0qurco2Zkoz0agPlje6nUL06z7tHDw",
+      "expected_decision": "deny",
+      "expected_reason": "freshness_regression"
+    },
+    {
+      "id": "deny-freshness-regression-gt-voice-iat",
+      "description": "freshness_verified_at > voice_verdict.iat rejected with freshness_regression",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwNSwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZDJWaWNuUmpYekUyYXlJc0ltMXZaR1ZzWDNabGNuTnBiMjRpT2lJd09HRTNaV0ZsT0RNMk9EazJNR1JoTjJZd01qVXhaamRtTWpsaVptVmhNelV5T1RoaE0yUmhNR0kyTVRVME56Z3daV0kzTm1VNFl6Z3hPVE0yT1dGbUlpd2ljMmxuYm1Gc1gzRjFZV3hwZEhraU9uc2ljMjV5WDJSaUlqb3lOQzQyTENKemNHVmxZMmhmYlhNaU9qSXlOREFzSW1Oc2FYQndhVzVuSWpvd0xqQXdNRFFzSW1OdlpHVmpYMkpoYm1SM2FXUjBhRjlvZWlJNk9EQXdNSDBzSW5CaGNuUnBZV3hmYzNCdmIyWmZjM0JoYm5NaU9sdGRMQ0pqYjI1emFYTjBaVzVqZVY5a2NtbG1kQ0k2ZXlKemRHRjBkWE1pT2lKbGRtRnNkV0YwWldRaUxDSjNhVzVrYjNkelgyVjJZV3gxWVhSbFpDSTZOQ3dpWm14dmIzSmZjM0J5WldGa1gyUmlJam94TGpnc0luUmhhV3hmWkdWallYbGZjM0J5WldGa1gyUmlJam95TGpFc0luTndaV04wY21Gc1gzUnBiSFJmWkhKcFpuUWlPakF1T1N3aWNtVmhjMjl1SWpwdWRXeHNmU3dpWVdKemRHRnBibDl5WldGemIyNGlPbTUxYkd3c0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SW4wLk9XV2lCSVdsZkZkZmJyTXVQTDlrcVM2X1J3UGRUT0hOZEIzOTFiZnhNdmVlR19qYVBxcEU2Q2I2aGpicENRRnZmU0ZSLW5uUDZUdjhObzdwQWNsSEJ3Iiwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6bnVsbCwicG9saWN5X2lkIjoidm9pY2Utd2VicnRjLXYyIiwic2NpdHRfcmVjZWlwdCI6IjBvUllINk1CSndSV1pXNTBjbTl6TFhOamFYUjBMVEl3TWpZdE1URXRZUmtCaXdHaEdRR01vU0NEQlFPRFdDQlUzV2t3bElrLXZjT1Y2eW1SVjJ4UUdQeEpuLUNRR2NrVGJRc1ZKb2xaTkZnZy05eFMzcWNIN1BRM1ZHcnd4aFFtM0dFOVo4RE1GRFM5WFJoblZCZWd3QTlZSU0wcVV6M0dBQ2gxSWYyUE9adEkyV082WGJLT0YxRnA4NWpnSzdsc3pJX2tXUUkwZXlKaGMzTjFjbUZ1WTJWZmRHbGxjaUk2SW5admFXTmxYM0JzZFhOZmNHRnpjMnRsZVNJc0ltRjFaQ0k2SW1oMGRIQnpPaTh2YldOd0xtRmpiV1V0WW1GdWF5NWxlR0Z0Y0d4bEwzWXhMMjFqY0NJc0ltUmxZMmx6YVc5dUlqb2lZV3hzYjNjaUxDSmxkbUZzZFdGMFpXUmZZWFFpT2pFM09UVTBOVEF4TVRBc0ltWnlaWE5vYm1WemMxOTJaWEpwWm1sbFpGOWhkQ0k2TVRjNU5UUTFNREV3TUN3aWFuUnBJam9pTkdZNFl6SmhNVGxrTjJVek5HSTJNRGd4WVRWak9XVXdNbVl6WWpSa05XVTJZVGRpT0dNNVpEQmxNV1l5WVROaU5HTTFaRFpsTjJZNE1Ea3hZVEppTXlJc0ltMXZaR0ZzYVhSNUlqcGJJblp2YVdObFgyeHBkbVZ1WlhOeklpd2lkMlZpWVhWMGFHNWZkWFlpWFN3aWJXOWtaV3hmZG1WeWMybHZiaUk2SWpBNFlUZGxZV1U0TXpZNE9UWXdaR0UzWmpBeU5URm1OMll5T1dKbVpXRXpOVEk1T0dFelpHRXdZall4TlRRM09EQmxZamMyWlRoak9ERTVNelk1WVdZaUxDSndiMnhwWTNsZmFXUWlPaUozYVhKbExYUnlZVzV6Wm1WeUxXaHBaMmd0ZGpJaUxDSnlaV0Z6YjI0aU9pSmhZMk5sY0hSbFpDSXNJbkpsY1hWbGMzUmZaR2xuWlhOMElqb2lORFpqWTJVell6ZzFOV1poWkRnMFpXRTJObVJqTURNNE9EUm1PRE5tT0RNMlkySmlNVGRqWmpreE56RmxOREZsWTJJd056ZzVaalUxT0RJMk5XSmxOQ0lzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJaXdpYzJOb1pXMWhJam9pWlc1MGNtOXpMWE5qYVhSMExYQmxjbTFwZEMxMk1pSjlXRUNyVlc1aS1pdjIzUHVCdGh0S2c4LVRyU0RzdGFUZWNaemtCZzhxci1SbnNpYm5xY284VWQ0ZmQwdlRBZzZ3VlhTUHJLWmFfaVhwZkNKb3NfRlpsX3NKIiwiY25mIjp7ImprdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifX0.6LZ2GWOTaDSg35Q1F02TkfyQwg8Ng7aQMGxrWEfLWocZzNS5dXOZg72Mt69B7IIu37pKQSmjdcjl1p0IxuFtBg",
+      "expected_decision": "deny",
+      "expected_reason": "freshness_regression"
+    },
+    {
+      "id": "deny-evidence-stale",
+      "description": "now - freshness_verified_at > max_evidence_age_seconds rejected with evidence_stale",
+      "policy": {
+        "policy_id": "mcp-passkey-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": false,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured"
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450221,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InBhc3NrZXlfd2ViYXV0aG5fdXYiLCJtb2RhbGl0eSI6WyJ3ZWJhdXRobl91diJdLCJmcmVzaG5lc3NfdmVyaWZpZWRfYXQiOjE3OTU0NTAxMDAsImNvbnRpbnVpdHkiOnsic2Vzc2lvbl9pZCI6ImxrX3Jvb21fYmFua184ODMxX2NhbGxlcl8wMSIsIm1vZGUiOiJjYWxsX3Nlc3Npb24iLCJjYWxsX2NvbnRpbnVpdHlfdmVyaWZpZWQiOnRydWUsInN0ZXBfdXBfdHJpZ2dlcmVkIjp0cnVlLCJwcmlvcl9wZXJtaXRfanRpIjpudWxsfSwidW5pcXVlbmVzc19zdGF0dXMiOiJlbnRlcnByaXNlX2lkcF9zdWJqZWN0Iiwidm9pY2VfdmVyZGljdF9qd3MiOm51bGwsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOiI4Y2JjODAyNzJiMDAyNWYyNzdjZDMxYWNiYWViMGQ3YWFlNWU0ZTNjNmJjY2I5ZmVhYzQ4NTQxNDA4YzM1ZDYxIiwicG9saWN5X2lkIjoibWNwLXBhc3NrZXktdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.UbVQN7yg7K0vvUSCzadcDi1TkwBg56Iq6dppdRhcE-lJGNX49HAema3TuRlpCUjVMX7BBJCbBtr-3sh8vVktCw",
+      "expected_decision": "deny",
+      "expected_reason": "evidence_stale"
+    },
+    {
+      "id": "deny-continuity-broken",
+      "description": "require_continuity=true fails continuity_broken when call_continuity_verified is false",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6ZmFsc2UsInN0ZXBfdXBfdHJpZ2dlcmVkIjpmYWxzZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjpudWxsLCJwb2xpY3lfaWQiOiJ2b2ljZS13ZWJydGMtdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.FC9o4994uA2qq7MpoETUlw_FHR1mQLIiJUYFlJEyzB4Flr3V5WPBYPXL4rWhUlwE-ZYAmAjd2fXNaEak9uqiCQ",
+      "expected_decision": "deny",
+      "expected_reason": "continuity_broken"
+    },
+    {
+      "id": "deny-voice-verdict-missing",
+      "description": "voice_liveness_webrtc without voice_verdict_jws fails voice_verdict_invalid",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6bnVsbCwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6bnVsbCwicG9saWN5X2lkIjoidm9pY2Utd2VicnRjLXYyIiwic2NpdHRfcmVjZWlwdCI6IjBvUllINk1CSndSV1pXNTBjbTl6TFhOamFYUjBMVEl3TWpZdE1URXRZUmtCaXdHaEdRR01vU0NEQlFPRFdDQlUzV2t3bElrLXZjT1Y2eW1SVjJ4UUdQeEpuLUNRR2NrVGJRc1ZKb2xaTkZnZy05eFMzcWNIN1BRM1ZHcnd4aFFtM0dFOVo4RE1GRFM5WFJoblZCZWd3QTlZSU0wcVV6M0dBQ2gxSWYyUE9adEkyV082WGJLT0YxRnA4NWpnSzdsc3pJX2tXUUkwZXlKaGMzTjFjbUZ1WTJWZmRHbGxjaUk2SW5admFXTmxYM0JzZFhOZmNHRnpjMnRsZVNJc0ltRjFaQ0k2SW1oMGRIQnpPaTh2YldOd0xtRmpiV1V0WW1GdWF5NWxlR0Z0Y0d4bEwzWXhMMjFqY0NJc0ltUmxZMmx6YVc5dUlqb2lZV3hzYjNjaUxDSmxkbUZzZFdGMFpXUmZZWFFpT2pFM09UVTBOVEF4TVRBc0ltWnlaWE5vYm1WemMxOTJaWEpwWm1sbFpGOWhkQ0k2TVRjNU5UUTFNREV3TUN3aWFuUnBJam9pTkdZNFl6SmhNVGxrTjJVek5HSTJNRGd4WVRWak9XVXdNbVl6WWpSa05XVTJZVGRpT0dNNVpEQmxNV1l5WVROaU5HTTFaRFpsTjJZNE1Ea3hZVEppTXlJc0ltMXZaR0ZzYVhSNUlqcGJJblp2YVdObFgyeHBkbVZ1WlhOeklpd2lkMlZpWVhWMGFHNWZkWFlpWFN3aWJXOWtaV3hmZG1WeWMybHZiaUk2SWpBNFlUZGxZV1U0TXpZNE9UWXdaR0UzWmpBeU5URm1OMll5T1dKbVpXRXpOVEk1T0dFelpHRXdZall4TlRRM09EQmxZamMyWlRoak9ERTVNelk1WVdZaUxDSndiMnhwWTNsZmFXUWlPaUozYVhKbExYUnlZVzV6Wm1WeUxXaHBaMmd0ZGpJaUxDSnlaV0Z6YjI0aU9pSmhZMk5sY0hSbFpDSXNJbkpsY1hWbGMzUmZaR2xuWlhOMElqb2lORFpqWTJVell6ZzFOV1poWkRnMFpXRTJObVJqTURNNE9EUm1PRE5tT0RNMlkySmlNVGRqWmpreE56RmxOREZsWTJJd056ZzVaalUxT0RJMk5XSmxOQ0lzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJaXdpYzJOb1pXMWhJam9pWlc1MGNtOXpMWE5qYVhSMExYQmxjbTFwZEMxMk1pSjlXRUNyVlc1aS1pdjIzUHVCdGh0S2c4LVRyU0RzdGFUZWNaemtCZzhxci1SbnNpYm5xY284VWQ0ZmQwdlRBZzZ3VlhTUHJLWmFfaVhwZkNKb3NfRlpsX3NKIiwiY25mIjp7ImprdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifX0.BrTVMPqG8oqlEgBW57EQKU2XYY05vNLgx3WSGrIaZ4PtB4fnDjA-FK88oyYYBgjOLKdMEaq2Y9vYbn9ney0WDQ",
+      "expected_decision": "deny",
+      "expected_reason": "voice_verdict_invalid"
+    },
+    {
+      "id": "deny-voice-profile-tier-mismatch",
+      "description": "voice_liveness_webrtc carrying telephony_8k verdict fails voice_profile_disallowed",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZEdWc1pYQm9iMjU1WHpocklpd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p6YVdkdVlXeGZjWFZoYkdsMGVTSTZleUp6Ym5KZlpHSWlPakU0TGpJc0luTndaV1ZqYUY5dGN5STZNakV3TUN3aVkyeHBjSEJwYm1jaU9qQXVNREF4TENKamIyUmxZMTlpWVc1a2QybGtkR2hmYUhvaU9qTTBNREI5TENKd1lYSjBhV0ZzWDNOd2IyOW1YM053WVc1eklqcGJYU3dpWTI5dWMybHpkR1Z1WTNsZlpISnBablFpT25zaWMzUmhkSFZ6SWpvaVpYWmhiSFZoZEdWa0lpd2lkMmx1Wkc5M2MxOWxkbUZzZFdGMFpXUWlPalFzSW1ac2IyOXlYM053Y21WaFpGOWtZaUk2TVM0NExDSjBZV2xzWDJSbFkyRjVYM053Y21WaFpGOWtZaUk2TWk0eExDSnpjR1ZqZEhKaGJGOTBhV3gwWDJSeWFXWjBJam93TGprc0luSmxZWE52YmlJNmJuVnNiSDBzSW1GaWMzUmhhVzVmY21WaGMyOXVJanB1ZFd4c0xDSnlaWFJsYm5ScGIyNGlPaUp0WlcxdmNubGZiMjVzZVNKOS5xQ0ZkQXZpRTRiU0htUms2SWxieVFWNndzTF9iVV9oSHhYU21ic28yQW9FVE9VaER2T1hmcnIya1pJa1NNTGRhS1FKZHc3S0UxSFRyc0I4S1IwR01EZyIsIndlYmF1dGhuX2Fzc2VydGlvbl9kaWdlc3QiOm51bGwsInBvbGljeV9pZCI6InZvaWNlLXdlYnJ0Yy12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.2AXa6d67RembtrWHm_cUmQH12DYG8pXPM5RGEm8HoLp5bLPjjjlgBYEzLI4h6yaNm20dim11L8FUK1o05ckuBw",
+      "expected_decision": "deny",
+      "expected_reason": "voice_profile_disallowed"
+    },
+    {
+      "id": "deny-voice-insufficient-signal",
+      "description": "Voice verdict insufficient_signal (abstain_reason=packet_loss) rejected with voice_verdict_not_allowed",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTRZVEZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTRJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2lhVzV6ZFdabWFXTnBaVzUwWDNOcFoyNWhiQ0lzSW1OaGJHbGljbUYwWldSZmJHeHlJanB1ZFd4c0xDSnZjR1Z5WVhScGJtZGZjSEp2Wm1sc1pTSTZJbmRsWW5KMFkxOHhObXNpTENKdGIyUmxiRjkyWlhKemFXOXVJam9pTURoaE4yVmhaVGd6TmpnNU5qQmtZVGRtTURJMU1XWTNaakk1WW1abFlUTTFNams0WVROa1lUQmlOakUxTkRjNE1HVmlOelpsT0dNNE1Ua3pOamxoWmlJc0luTnBaMjVoYkY5eGRXRnNhWFI1SWpwN0luTnVjbDlrWWlJNk1qUXVOaXdpYzNCbFpXTm9YMjF6SWpveU1qUXdMQ0pqYkdsd2NHbHVaeUk2TUM0d01EQTBMQ0pqYjJSbFkxOWlZVzVrZDJsa2RHaGZhSG9pT2pnd01EQjlMQ0p3WVhKMGFXRnNYM053YjI5bVgzTndZVzV6SWpwYlhTd2lZMjl1YzJsemRHVnVZM2xmWkhKcFpuUWlPbnNpYzNSaGRIVnpJam9pYm05MFgyRndjR3hwWTJGaWJHVWlMQ0ozYVc1a2IzZHpYMlYyWVd4MVlYUmxaQ0k2TUN3aVpteHZiM0pmYzNCeVpXRmtYMlJpSWpwdWRXeHNMQ0owWVdsc1gyUmxZMkY1WDNOd2NtVmhaRjlrWWlJNmJuVnNiQ3dpYzNCbFkzUnlZV3hmZEdsc2RGOWtjbWxtZENJNmJuVnNiQ3dpY21WaGMyOXVJam9pYVc1emRXWm1hV05wWlc1MFgzWnZhV05sWkY5M2FXNWtiM2R6SW4wc0ltRmljM1JoYVc1ZmNtVmhjMjl1SWpvaWNHRmphMlYwWDJ4dmMzTWlMQ0p5WlhSbGJuUnBiMjRpT2lKdFpXMXZjbmxmYjI1c2VTSjkuWkhqYjB3MU5XSWUwTERvMnJUaExwXzlHdUlUZWdGWW5WUFUyTUxTWGhNVFJxQkxIVVYyR0lTbUE1T2h6RFJsamRTdmEwaGs3LUZTYy0tY1dxU1R1Q3ciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjpudWxsLCJwb2xpY3lfaWQiOiJ2b2ljZS13ZWJydGMtdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.RKmVLoQiWaFEDWvPaJjPdI9i-lBczabKtaQSYXkvUDVIIJVQC-Yaa7rzAUmdY7HG511wkLYP9dht2lULEXYDAw",
+      "expected_decision": "deny",
+      "expected_reason": "voice_verdict_not_allowed"
+    },
+    {
+      "id": "deny-voice-suspicious",
+      "description": "Voice verdict suspicious rejected with voice_verdict_not_allowed",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2ljM1Z6Y0dsamFXOTFjeUlzSW1OaGJHbGljbUYwWldSZmJHeHlJam93TGpRc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuN1ZmTkFnQmFKQVBoYkE4MXNnQlJKYkUyQmd3T3NKaDl2QUE1bllQZEhrM1JGRTVCb2xnN0dKdTkwbXdmQlE1VGI1VGdqM1l6MnZuOVpvMUhFOGEyQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjpudWxsLCJwb2xpY3lfaWQiOiJ2b2ljZS13ZWJydGMtdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.QH_gCLWukchG25-byK6V3Jv65Stj4fE-t7wP0Vui670yXkGkZzoEK7cwm-C8LhuinJnb8jSUExbl4LAppHYVAQ",
+      "expected_decision": "deny",
+      "expected_reason": "voice_verdict_not_allowed"
+    },
+    {
+      "id": "deny-voice-llr-below-floor",
+      "description": "calibrated_llr below min_calibrated_llr rejected with voice_verdict_not_allowed",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pFdU1Td2liM0JsY21GMGFXNW5YM0J5YjJacGJHVWlPaUozWldKeWRHTmZNVFpySWl3aWJXOWtaV3hmZG1WeWMybHZiaUk2SWpBNFlUZGxZV1U0TXpZNE9UWXdaR0UzWmpBeU5URm1OMll5T1dKbVpXRXpOVEk1T0dFelpHRXdZall4TlRRM09EQmxZamMyWlRoak9ERTVNelk1WVdZaUxDSnphV2R1WVd4ZmNYVmhiR2wwZVNJNmV5SnpibkpmWkdJaU9qSTBMallzSW5Od1pXVmphRjl0Y3lJNk1qSTBNQ3dpWTJ4cGNIQnBibWNpT2pBdU1EQXdOQ3dpWTI5a1pXTmZZbUZ1WkhkcFpIUm9YMmg2SWpvNE1EQXdmU3dpY0dGeWRHbGhiRjl6Y0c5dlpsOXpjR0Z1Y3lJNlcxMHNJbU52Ym5OcGMzUmxibU41WDJSeWFXWjBJanA3SW5OMFlYUjFjeUk2SW1WMllXeDFZWFJsWkNJc0luZHBibVJ2ZDNOZlpYWmhiSFZoZEdWa0lqbzBMQ0ptYkc5dmNsOXpjSEpsWVdSZlpHSWlPakV1T0N3aWRHRnBiRjlrWldOaGVWOXpjSEpsWVdSZlpHSWlPakl1TVN3aWMzQmxZM1J5WVd4ZmRHbHNkRjlrY21sbWRDSTZNQzQ1TENKeVpXRnpiMjRpT201MWJHeDlMQ0poWW5OMFlXbHVYM0psWVhOdmJpSTZiblZzYkN3aWNtVjBaVzUwYVc5dUlqb2liV1Z0YjNKNVgyOXViSGtpZlEuU2d1akNFaklKaHdzeThqaWQ4M0N1TE9DamhEYnlSQ3NvN1RCSkgxZ1hERWxjMmMzeFgtbl9fTl9qLWJIeHpfNXFIM2xnZVNfUldsWVlzNTl1QzF5Q2ciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjpudWxsLCJwb2xpY3lfaWQiOiJ2b2ljZS13ZWJydGMtdjIiLCJzY2l0dF9yZWNlaXB0IjoiMG9SWUg2TUJKd1JXWlc1MGNtOXpMWE5qYVhSMExUSXdNall0TVRFdFlSa0Jpd0doR1FHTW9TQ0RCUU9EV0NCVTNXa3dsSWstdmNPVjZ5bVJWMnhRR1B4Sm4tQ1FHY2tUYlFzVkpvbFpORmdnLTl4UzNxY0g3UFEzVkdyd3hoUW0zR0U5WjhETUZEUzlYUmhuVkJlZ3dBOVlJTTBxVXozR0FDaDFJZjJQT1p0STJXTzZYYktPRjFGcDg1amdLN2xzeklfa1dRSTBleUpoYzNOMWNtRnVZMlZmZEdsbGNpSTZJblp2YVdObFgzQnNkWE5mY0dGemMydGxlU0lzSW1GMVpDSTZJbWgwZEhCek9pOHZiV053TG1GamJXVXRZbUZ1YXk1bGVHRnRjR3hsTDNZeEwyMWpjQ0lzSW1SbFkybHphVzl1SWpvaVlXeHNiM2NpTENKbGRtRnNkV0YwWldSZllYUWlPakUzT1RVME5UQXhNVEFzSW1aeVpYTm9ibVZ6YzE5MlpYSnBabWxsWkY5aGRDSTZNVGM1TlRRMU1ERXdNQ3dpYW5ScElqb2lOR1k0WXpKaE1UbGtOMlV6TkdJMk1EZ3hZVFZqT1dVd01tWXpZalJrTldVMllUZGlPR001WkRCbE1XWXlZVE5pTkdNMVpEWmxOMlk0TURreFlUSmlNeUlzSW0xdlpHRnNhWFI1SWpwYkluWnZhV05sWDJ4cGRtVnVaWE56SWl3aWQyVmlZWFYwYUc1ZmRYWWlYU3dpYlc5a1pXeGZkbVZ5YzJsdmJpSTZJakE0WVRkbFlXVTRNelk0T1RZd1pHRTNaakF5TlRGbU4yWXlPV0ptWldFek5USTVPR0V6WkdFd1lqWXhOVFEzT0RCbFlqYzJaVGhqT0RFNU16WTVZV1lpTENKd2IyeHBZM2xmYVdRaU9pSjNhWEpsTFhSeVlXNXpabVZ5TFdocFoyZ3RkaklpTENKeVpXRnpiMjRpT2lKaFkyTmxjSFJsWkNJc0luSmxjWFZsYzNSZlpHbG5aWE4wSWpvaU5EWmpZMlV6WXpnMU5XWmhaRGcwWldFMk5tUmpNRE00T0RSbU9ETm1PRE0yWTJKaU1UZGpaamt4TnpGbE5ERmxZMkl3TnpnNVpqVTFPREkyTldKbE5DSXNJbkpsZEdWdWRHbHZiaUk2SW0xbGJXOXllVjl2Ym14NUlpd2ljMk5vWlcxaElqb2laVzUwY205ekxYTmphWFIwTFhCbGNtMXBkQzEyTWlKOVdFQ3JWVzVpLWl2MjNQdUJ0aHRLZzgtVHJTRHN0YVRlY1p6a0JnOHFyLVJuc2libnFjbzhVZDRmZDB2VEFnNndWWFNQcktaYV9pWHBmQ0pvc19GWmxfc0oiLCJjbmYiOnsiamt0IjoidUJ6REdKZjhzakp2b1FkbGpxbmYwWWVORHhydElVMFZSYzU1cjk3M21GNCJ9fQ.8eq1C-dZ1t0k9mjEJZ4ixVCGoMaFz9k0UXKfkXOhimmVxepmQ2l4VnbFC5XuNPyrBY8C1exz1QhvQGNlLdi7CA",
+      "expected_decision": "deny",
+      "expected_reason": "voice_verdict_not_allowed"
+    },
+    {
+      "id": "deny-partial-spoof-spans",
+      "description": "160ms-aligned partial_spoof_spans breaches max_partial_spoof_spans=0 -> partial_spoof_detected",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZDJWaWNuUmpYekUyYXlJc0ltMXZaR1ZzWDNabGNuTnBiMjRpT2lJd09HRTNaV0ZsT0RNMk9EazJNR1JoTjJZd01qVXhaamRtTWpsaVptVmhNelV5T1RoaE0yUmhNR0kyTVRVME56Z3daV0kzTm1VNFl6Z3hPVE0yT1dGbUlpd2ljMmxuYm1Gc1gzRjFZV3hwZEhraU9uc2ljMjV5WDJSaUlqb3lOQzQyTENKemNHVmxZMmhmYlhNaU9qSXlOREFzSW1Oc2FYQndhVzVuSWpvd0xqQXdNRFFzSW1OdlpHVmpYMkpoYm1SM2FXUjBhRjlvZWlJNk9EQXdNSDBzSW5CaGNuUnBZV3hmYzNCdmIyWmZjM0JoYm5NaU9sdDdJbk4wWVhKMFgyMXpJam96TWpBc0ltVnVaRjl0Y3lJNk5qUXdMQ0p6Y0c5dlpsOXdjbTlpWVdKcGJHbDBlU0k2TUM0NU5IMWRMQ0pqYjI1emFYTjBaVzVqZVY5a2NtbG1kQ0k2ZXlKemRHRjBkWE1pT2lKbGRtRnNkV0YwWldRaUxDSjNhVzVrYjNkelgyVjJZV3gxWVhSbFpDSTZOQ3dpWm14dmIzSmZjM0J5WldGa1gyUmlJam94TGpnc0luUmhhV3hmWkdWallYbGZjM0J5WldGa1gyUmlJam95TGpFc0luTndaV04wY21Gc1gzUnBiSFJmWkhKcFpuUWlPakF1T1N3aWNtVmhjMjl1SWpwdWRXeHNmU3dpWVdKemRHRnBibDl5WldGemIyNGlPbTUxYkd3c0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SW4wLnZjZWZVVXJiVXVTY3BGNkdOT3pkbXUwM0tNSHJlaDRqSm9wanB2RmZLcmtlV1hqZ2JPX2ZIWTBPQVJLMHJ1VTd2bFRyYjZIWnRjQWlHaHBNLS1xb0FnIiwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6bnVsbCwicG9saWN5X2lkIjoidm9pY2Utd2VicnRjLXYyIiwic2NpdHRfcmVjZWlwdCI6IjBvUllINk1CSndSV1pXNTBjbTl6TFhOamFYUjBMVEl3TWpZdE1URXRZUmtCaXdHaEdRR01vU0NEQlFPRFdDQlUzV2t3bElrLXZjT1Y2eW1SVjJ4UUdQeEpuLUNRR2NrVGJRc1ZKb2xaTkZnZy05eFMzcWNIN1BRM1ZHcnd4aFFtM0dFOVo4RE1GRFM5WFJoblZCZWd3QTlZSU0wcVV6M0dBQ2gxSWYyUE9adEkyV082WGJLT0YxRnA4NWpnSzdsc3pJX2tXUUkwZXlKaGMzTjFjbUZ1WTJWZmRHbGxjaUk2SW5admFXTmxYM0JzZFhOZmNHRnpjMnRsZVNJc0ltRjFaQ0k2SW1oMGRIQnpPaTh2YldOd0xtRmpiV1V0WW1GdWF5NWxlR0Z0Y0d4bEwzWXhMMjFqY0NJc0ltUmxZMmx6YVc5dUlqb2lZV3hzYjNjaUxDSmxkbUZzZFdGMFpXUmZZWFFpT2pFM09UVTBOVEF4TVRBc0ltWnlaWE5vYm1WemMxOTJaWEpwWm1sbFpGOWhkQ0k2TVRjNU5UUTFNREV3TUN3aWFuUnBJam9pTkdZNFl6SmhNVGxrTjJVek5HSTJNRGd4WVRWak9XVXdNbVl6WWpSa05XVTJZVGRpT0dNNVpEQmxNV1l5WVROaU5HTTFaRFpsTjJZNE1Ea3hZVEppTXlJc0ltMXZaR0ZzYVhSNUlqcGJJblp2YVdObFgyeHBkbVZ1WlhOeklpd2lkMlZpWVhWMGFHNWZkWFlpWFN3aWJXOWtaV3hmZG1WeWMybHZiaUk2SWpBNFlUZGxZV1U0TXpZNE9UWXdaR0UzWmpBeU5URm1OMll5T1dKbVpXRXpOVEk1T0dFelpHRXdZall4TlRRM09EQmxZamMyWlRoak9ERTVNelk1WVdZaUxDSndiMnhwWTNsZmFXUWlPaUozYVhKbExYUnlZVzV6Wm1WeUxXaHBaMmd0ZGpJaUxDSnlaV0Z6YjI0aU9pSmhZMk5sY0hSbFpDSXNJbkpsY1hWbGMzUmZaR2xuWlhOMElqb2lORFpqWTJVell6ZzFOV1poWkRnMFpXRTJObVJqTURNNE9EUm1PRE5tT0RNMlkySmlNVGRqWmpreE56RmxOREZsWTJJd056ZzVaalUxT0RJMk5XSmxOQ0lzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJaXdpYzJOb1pXMWhJam9pWlc1MGNtOXpMWE5qYVhSMExYQmxjbTFwZEMxMk1pSjlXRUNyVlc1aS1pdjIzUHVCdGh0S2c4LVRyU0RzdGFUZWNaemtCZzhxci1SbnNpYm5xY284VWQ0ZmQwdlRBZzZ3VlhTUHJLWmFfaVhwZkNKb3NfRlpsX3NKIiwiY25mIjp7ImprdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifX0.OQxNuUX61gnyQpsS3Op9sz4fhKconX8gIJ3RJdFSllYmo7k4mqNXA35QSDqBqENT3ZME76o7HOBEBKON7VgoBw",
+      "expected_decision": "deny",
+      "expected_reason": "partial_spoof_detected"
+    },
+    {
+      "id": "deny-consistency-drift-elevated",
+      "description": "consistency_drift.status == elevated with reject_on_consistency_drift=true -> consistency_drift_exceeded",
+      "policy": {
+        "policy_id": "voice-webrtc-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_liveness_webrtc"
+        ],
+        "required_modalities": [
+          "voice_liveness"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": false,
+        "require_scitt_receipt": false,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "wideband_clean"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX2xpdmVuZXNzX3dlYnJ0YyIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIl0sImZyZXNobmVzc192ZXJpZmllZF9hdCI6MTc5NTQ1MDEwMCwiY29udGludWl0eSI6eyJzZXNzaW9uX2lkIjoibGtfcm9vbV9iYW5rXzg4MzFfY2FsbGVyXzAxIiwibW9kZSI6ImNhbGxfc2Vzc2lvbiIsImNhbGxfY29udGludWl0eV92ZXJpZmllZCI6dHJ1ZSwic3RlcF91cF90cmlnZ2VyZWQiOnRydWUsInByaW9yX3Blcm1pdF9qdGkiOm51bGx9LCJ1bmlxdWVuZXNzX3N0YXR1cyI6ImVudGVycHJpc2VfaWRwX3N1YmplY3QiLCJ2b2ljZV92ZXJkaWN0X2p3cyI6ImV5SjBlWEFpT2lKbGJuUnliM010ZG05cFkyVXRiR2wyWlc1bGMzTXJhbmQwSWl3aVlXeG5Jam9pUldSRVUwRWlMQ0pyYVdRaU9pSmxiblJ5YjNNdGRtOXBZMlV0TWpBeU5pMHhNUzFoSW4wLmV5SnBjM01pT2lKb2RIUndjem92TDJGd2FTNWxiblJ5YjNNdWFXOGlMQ0pxZEdraU9pSTVZakZsTjJNME5HRXdaak0wWlRFeE9USmpPRFV4WkRjd1pUUmhObVl5TUdJell6RmtOR1UxWmpaaE4ySTRZemxrTUdVeFpqSmhNMkkwWXpWa05tVTNJaXdpYVdGMElqb3hOemsxTkRVd01UQXdMQ0psZUhBaU9qRTNPVFUwTlRBeU1qQXNJbk5sYzNOcGIyNWZhV1FpT2lKc2ExOXliMjl0WDJKaGJtdGZPRGd6TVY5allXeHNaWEpmTURFaUxDSjJaWEprYVdOMElqb2liR2xyWld4NVgyaDFiV0Z1SWl3aVkyRnNhV0p5WVhSbFpGOXNiSElpT2pRdU9ESXNJbTl3WlhKaGRHbHVaMTl3Y205bWFXeGxJam9pZDJWaWNuUmpYekUyYXlJc0ltMXZaR1ZzWDNabGNuTnBiMjRpT2lJd09HRTNaV0ZsT0RNMk9EazJNR1JoTjJZd01qVXhaamRtTWpsaVptVmhNelV5T1RoaE0yUmhNR0kyTVRVME56Z3daV0kzTm1VNFl6Z3hPVE0yT1dGbUlpd2ljMmxuYm1Gc1gzRjFZV3hwZEhraU9uc2ljMjV5WDJSaUlqb3lOQzQyTENKemNHVmxZMmhmYlhNaU9qSXlOREFzSW1Oc2FYQndhVzVuSWpvd0xqQXdNRFFzSW1OdlpHVmpYMkpoYm1SM2FXUjBhRjlvZWlJNk9EQXdNSDBzSW5CaGNuUnBZV3hmYzNCdmIyWmZjM0JoYm5NaU9sdGRMQ0pqYjI1emFYTjBaVzVqZVY5a2NtbG1kQ0k2ZXlKemRHRjBkWE1pT2lKbGJHVjJZWFJsWkNJc0luZHBibVJ2ZDNOZlpYWmhiSFZoZEdWa0lqbzFMQ0ptYkc5dmNsOXpjSEpsWVdSZlpHSWlPakV4TGpRc0luUmhhV3hmWkdWallYbGZjM0J5WldGa1gyUmlJam8zTGpJc0luTndaV04wY21Gc1gzUnBiSFJmWkhKcFpuUWlPalF1TlN3aWNtVmhjMjl1SWpvaVpITndYMmx6YjJ4aGRHVmtYMlpzYjI5eUluMHNJbUZpYzNSaGFXNWZjbVZoYzI5dUlqcHVkV3hzTENKeVpYUmxiblJwYjI0aU9pSnRaVzF2Y25sZmIyNXNlU0o5LlJFelUta0t1TUtEazA5Mll5RXJCVm1jRDhldWRpMk5ocGdQaHd1Z1JKTklHYW9vbjUtZkR1WV9uOUVTYVhySDBrRk95R2lxNDR6OGgwaGhReGEySkFRIiwid2ViYXV0aG5fYXNzZXJ0aW9uX2RpZ2VzdCI6bnVsbCwicG9saWN5X2lkIjoidm9pY2Utd2VicnRjLXYyIiwic2NpdHRfcmVjZWlwdCI6IjBvUllINk1CSndSV1pXNTBjbTl6TFhOamFYUjBMVEl3TWpZdE1URXRZUmtCaXdHaEdRR01vU0NEQlFPRFdDQlUzV2t3bElrLXZjT1Y2eW1SVjJ4UUdQeEpuLUNRR2NrVGJRc1ZKb2xaTkZnZy05eFMzcWNIN1BRM1ZHcnd4aFFtM0dFOVo4RE1GRFM5WFJoblZCZWd3QTlZSU0wcVV6M0dBQ2gxSWYyUE9adEkyV082WGJLT0YxRnA4NWpnSzdsc3pJX2tXUUkwZXlKaGMzTjFjbUZ1WTJWZmRHbGxjaUk2SW5admFXTmxYM0JzZFhOZmNHRnpjMnRsZVNJc0ltRjFaQ0k2SW1oMGRIQnpPaTh2YldOd0xtRmpiV1V0WW1GdWF5NWxlR0Z0Y0d4bEwzWXhMMjFqY0NJc0ltUmxZMmx6YVc5dUlqb2lZV3hzYjNjaUxDSmxkbUZzZFdGMFpXUmZZWFFpT2pFM09UVTBOVEF4TVRBc0ltWnlaWE5vYm1WemMxOTJaWEpwWm1sbFpGOWhkQ0k2TVRjNU5UUTFNREV3TUN3aWFuUnBJam9pTkdZNFl6SmhNVGxrTjJVek5HSTJNRGd4WVRWak9XVXdNbVl6WWpSa05XVTJZVGRpT0dNNVpEQmxNV1l5WVROaU5HTTFaRFpsTjJZNE1Ea3hZVEppTXlJc0ltMXZaR0ZzYVhSNUlqcGJJblp2YVdObFgyeHBkbVZ1WlhOeklpd2lkMlZpWVhWMGFHNWZkWFlpWFN3aWJXOWtaV3hmZG1WeWMybHZiaUk2SWpBNFlUZGxZV1U0TXpZNE9UWXdaR0UzWmpBeU5URm1OMll5T1dKbVpXRXpOVEk1T0dFelpHRXdZall4TlRRM09EQmxZamMyWlRoak9ERTVNelk1WVdZaUxDSndiMnhwWTNsZmFXUWlPaUozYVhKbExYUnlZVzV6Wm1WeUxXaHBaMmd0ZGpJaUxDSnlaV0Z6YjI0aU9pSmhZMk5sY0hSbFpDSXNJbkpsY1hWbGMzUmZaR2xuWlhOMElqb2lORFpqWTJVell6ZzFOV1poWkRnMFpXRTJObVJqTURNNE9EUm1PRE5tT0RNMlkySmlNVGRqWmpreE56RmxOREZsWTJJd056ZzVaalUxT0RJMk5XSmxOQ0lzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJaXdpYzJOb1pXMWhJam9pWlc1MGNtOXpMWE5qYVhSMExYQmxjbTFwZEMxMk1pSjlXRUNyVlc1aS1pdjIzUHVCdGh0S2c4LVRyU0RzdGFUZWNaemtCZzhxci1SbnNpYm5xY284VWQ0ZmQwdlRBZzZ3VlhTUHJLWmFfaVhwZkNKb3NfRlpsX3NKIiwiY25mIjp7ImprdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifX0.Vuxjtoh8yFZhbUXBUQ6NtlsKU_k6aeZSHzSZLOJjQLS5yXV-KIeOwmsHT8fagy5ZF6cJExkd-q6c9G95zfTnAw",
+      "expected_decision": "deny",
+      "expected_reason": "consistency_drift_exceeded"
+    },
+    {
+      "id": "deny-dpop-jkt-mismatch",
+      "description": "DPoP proof signed by key whose RFC 7638 thumbprint differs from cnf.jkt -> dpop_proof_invalid",
+      "policy": {
+        "policy_id": "wire-transfer-high-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_plus_passkey",
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": true,
+        "require_scitt_receipt": true,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+      "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiQTZDSUhGcDlaT0JRMUp5NFRfbTBYU1RDeDRPSUtSRDJtTU45YlN2bWh2dyIsInkiOiJBUGpIVW9rdW03bXlpdF9GTmdwUm9GUGI0WUQyR1A3MUI1NjRwZXNlTkw0In19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiI4WTVaM0RfbzZmNDc5V0V6V3hRNDdvZ2ZnYmZ6ZFhnWlhwR0tnVEpVUzE4In0.EcZnNVio2ivCfeI9zWGAN0XAwoR-piynpCK3bC48OI5Njw4IDI3111MCNSHJddAORi370OjdkgQwUq5xc6NdwA",
+      "dpop_htm": "POST",
+      "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+      "expected_decision": "deny",
+      "expected_reason": "dpop_proof_invalid"
+    },
+    {
+      "id": "deny-dpop-ath-mismatch",
+      "description": "DPoP proof with mismatched ath claim -> dpop_proof_invalid",
+      "policy": {
+        "policy_id": "wire-transfer-high-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_plus_passkey",
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": true,
+        "require_scitt_receipt": true,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+      "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoidVBfOXlDNHlzNnlRZEp3eEcwZmJzWTBTTzllY3BxYU1nWDc5RGtQWHZHNCIsInkiOiJfbVhrOE1HeUlzejdaM2hiTGNLcDlCRlNMbnhlLUQzWTN3QWZOUThTa3lRIn19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiJzdWR5UTBfRGZPVjlVdGhZaDRleHJGNlgxZ1N1OEpNaE9VMzdCZTc4UmxFIn0.NZ4lZ8iC5m6dIRkJF8JGIxP2wAObO9SJ3ObNTDl3mFNmoUahhBCd_MojWUibfchJC6iQIVpC2dnGwtYNAvGoGw",
+      "dpop_htm": "POST",
+      "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+      "expected_decision": "deny",
+      "expected_reason": "dpop_proof_invalid"
+    },
+    {
+      "id": "deny-scitt-missing-when-required",
+      "description": "Missing scitt_receipt when policy.require_scitt_receipt=true -> scitt_receipt_invalid",
+      "policy": {
+        "policy_id": "wire-transfer-high-v2",
+        "version": 2,
+        "allowed_assurance_tiers": [
+          "voice_plus_passkey",
+          "passkey_webauthn_uv"
+        ],
+        "required_modalities": [
+          "webauthn_uv"
+        ],
+        "max_evidence_age_seconds": 120,
+        "max_permit_lifetime_seconds": 300,
+        "require_continuity": true,
+        "require_dpop": true,
+        "require_scitt_receipt": true,
+        "uniqueness_requirement": "allow_unmeasured",
+        "voice_rules": {
+          "allowed_profiles": [
+            "webrtc_16k",
+            "telephony_8k"
+          ],
+          "allowed_verdicts": [
+            "likely_human"
+          ],
+          "min_calibrated_llr": 2,
+          "min_speech_ms": 1500,
+          "min_snr_db": 8,
+          "max_voice_age_seconds": 60,
+          "max_partial_spoof_spans": 0,
+          "reject_on_abstain": true,
+          "reject_on_consistency_drift": true,
+          "allowed_model_versions": []
+        }
+      },
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+      "now_seconds": 1795450150,
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOm51bGwsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.C1KeO8Pvs9h2NdIxT43NTmVsbj9gSiiMX_wsDmK775VWcWvXAXN-rZbDRObZggCXKy53Y456ip0v4kXGwfnBAA",
+      "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoidVBfOXlDNHlzNnlRZEp3eEcwZmJzWTBTTzllY3BxYU1nWDc5RGtQWHZHNCIsInkiOiJfbVhrOE1HeUlzejdaM2hiTGNLcDlCRlNMbnhlLUQzWTN3QWZOUThTa3lRIn19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiJlZjBvNVQwQXVrQXluOHlXMDNrdzd0TVBzVmZ1ZVlULTRwSGFYT0luRlpRIn0.hCSY0PSmSBWolq_KOnbO0GKXTmf1gjEEzq60-IGFJKgox6JzoQMR9KTcOqrj3VzvA_RqhUV_IAHXJ5y9fgGlxw",
+      "dpop_htm": "POST",
+      "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+      "expected_decision": "deny",
+      "expected_reason": "scitt_receipt_invalid"
+    }
+  ],
+  "non_mutating_precheck_scenario": {
+    "description": "Invalid probes using the same pending jti must fail prechecks WITHOUT burning the pending nonce, so the subsequent valid presentation succeeds",
+    "jti": "4f8c2a19d7e34b6081a5c9e02f3b4d5e6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3",
+    "policy": {
+      "policy_id": "wire-transfer-high-v2",
+      "version": 2,
+      "allowed_assurance_tiers": [
+        "voice_plus_passkey",
+        "passkey_webauthn_uv"
+      ],
+      "required_modalities": [
+        "webauthn_uv"
+      ],
+      "max_evidence_age_seconds": 120,
+      "max_permit_lifetime_seconds": 300,
+      "require_continuity": true,
+      "require_dpop": true,
+      "require_scitt_receipt": true,
+      "uniqueness_requirement": "allow_unmeasured",
+      "voice_rules": {
+        "allowed_profiles": [
+          "webrtc_16k",
+          "telephony_8k"
+        ],
+        "allowed_verdicts": [
+          "likely_human"
+        ],
+        "min_calibrated_llr": 2,
+        "min_speech_ms": 1500,
+        "min_snr_db": 8,
+        "max_voice_age_seconds": 60,
+        "max_partial_spoof_spans": 0,
+        "reject_on_abstain": true,
+        "reject_on_consistency_drift": true,
+        "allowed_model_versions": []
+      }
+    },
+    "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+    "now_seconds": 1795450150,
+    "invalid_probes": [
+      {
+        "id": "probe-forged-signature",
+        "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6InRhbXBlcmVkLXBvbGljeSIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+        "action": {
+          "kind": "mcp.tool_call",
+          "server": "treasury-mcp",
+          "tool": "transfer_funds",
+          "arguments": {
+            "amount": 250,
+            "currency": "USD",
+            "recipient": "acct_9942",
+            "zero": 0
+          }
+        },
+        "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoidVBfOXlDNHlzNnlRZEp3eEcwZmJzWTBTTzllY3BxYU1nWDc5RGtQWHZHNCIsInkiOiJfbVhrOE1HeUlzejdaM2hiTGNLcDlCRlNMbnhlLUQzWTN3QWZOUThTa3lRIn19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiI4WTVaM0RfbzZmNDc5V0V6V3hRNDdvZ2ZnYmZ6ZFhnWlhwR0tnVEpVUzE4In0.96Owgi2MXaZGyv1twK7HWVJEfN1ceIZc-w0E0KFKn-YsN4Jqx3tNB8TdJsnC1rd_wW6X8BsKlmu8BlrbkMEAZg",
+        "dpop_htm": "POST",
+        "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+        "expected_reason": "invalid_signature"
+      },
+      {
+        "id": "probe-tampered-action",
+        "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+        "action": {
+          "kind": "mcp.tool_call",
+          "server": "treasury-mcp",
+          "tool": "transfer_funds",
+          "arguments": {
+            "amount": 25000,
+            "currency": "USD",
+            "recipient": "acct_9942",
+            "zero": 0
+          }
+        },
+        "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoidVBfOXlDNHlzNnlRZEp3eEcwZmJzWTBTTzllY3BxYU1nWDc5RGtQWHZHNCIsInkiOiJfbVhrOE1HeUlzejdaM2hiTGNLcDlCRlNMbnhlLUQzWTN3QWZOUThTa3lRIn19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiI4WTVaM0RfbzZmNDc5V0V6V3hRNDdvZ2ZnYmZ6ZFhnWlhwR0tnVEpVUzE4In0.96Owgi2MXaZGyv1twK7HWVJEfN1ceIZc-w0E0KFKn-YsN4Jqx3tNB8TdJsnC1rd_wW6X8BsKlmu8BlrbkMEAZg",
+        "dpop_htm": "POST",
+        "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+        "expected_reason": "request_digest_mismatch"
+      },
+      {
+        "id": "probe-wrong-dpop",
+        "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+        "action": {
+          "kind": "mcp.tool_call",
+          "server": "treasury-mcp",
+          "tool": "transfer_funds",
+          "arguments": {
+            "amount": 250,
+            "currency": "USD",
+            "recipient": "acct_9942",
+            "zero": 0
+          }
+        },
+        "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiQTZDSUhGcDlaT0JRMUp5NFRfbTBYU1RDeDRPSUtSRDJtTU45YlN2bWh2dyIsInkiOiJBUGpIVW9rdW03bXlpdF9GTmdwUm9GUGI0WUQyR1A3MUI1NjRwZXNlTkw0In19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiI4WTVaM0RfbzZmNDc5V0V6V3hRNDdvZ2ZnYmZ6ZFhnWlhwR0tnVEpVUzE4In0.EcZnNVio2ivCfeI9zWGAN0XAwoR-piynpCK3bC48OI5Njw4IDI3111MCNSHJddAORi370OjdkgQwUq5xc6NdwA",
+        "dpop_htm": "POST",
+        "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+        "expected_reason": "dpop_proof_invalid"
+      }
+    ],
+    "final_valid_attempt": {
+      "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+      "action": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoidVBfOXlDNHlzNnlRZEp3eEcwZmJzWTBTTzllY3BxYU1nWDc5RGtQWHZHNCIsInkiOiJfbVhrOE1HeUlzejdaM2hiTGNLcDlCRlNMbnhlLUQzWTN3QWZOUThTa3lRIn19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiI4WTVaM0RfbzZmNDc5V0V6V3hRNDdvZ2ZnYmZ6ZFhnWlhwR0tnVEpVUzE4In0.96Owgi2MXaZGyv1twK7HWVJEfN1ceIZc-w0E0KFKn-YsN4Jqx3tNB8TdJsnC1rd_wW6X8BsKlmu8BlrbkMEAZg",
+      "dpop_htm": "POST",
+      "dpop_htu": "https://mcp.acme-bank.example/v1/mcp",
+      "expected_decision": "allow",
+      "expected_reason": "accepted"
+    }
+  },
+  "concurrent_replay_scenario": {
+    "description": "32-way concurrent replay race over one valid jti must yield exactly 1 allow and 31 nonce_replayed denials",
+    "concurrency": 32,
+    "expected_allows": 1,
+    "expected_nonce_replayed": 31,
+    "jti": "4f8c2a19d7e34b6081a5c9e02f3b4d5e6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3",
+    "policy": {
+      "policy_id": "wire-transfer-high-v2",
+      "version": 2,
+      "allowed_assurance_tiers": [
+        "voice_plus_passkey",
+        "passkey_webauthn_uv"
+      ],
+      "required_modalities": [
+        "webauthn_uv"
+      ],
+      "max_evidence_age_seconds": 120,
+      "max_permit_lifetime_seconds": 300,
+      "require_continuity": true,
+      "require_dpop": true,
+      "require_scitt_receipt": true,
+      "uniqueness_requirement": "allow_unmeasured",
+      "voice_rules": {
+        "allowed_profiles": [
+          "webrtc_16k",
+          "telephony_8k"
+        ],
+        "allowed_verdicts": [
+          "likely_human"
+        ],
+        "min_calibrated_llr": 2,
+        "min_speech_ms": 1500,
+        "min_snr_db": 8,
+        "max_voice_age_seconds": 60,
+        "max_partial_spoof_spans": 0,
+        "reject_on_abstain": true,
+        "reject_on_consistency_drift": true,
+        "allowed_model_versions": []
+      }
+    },
+    "action": {
+      "kind": "mcp.tool_call",
+      "server": "treasury-mcp",
+      "tool": "transfer_funds",
+      "arguments": {
+        "amount": 250,
+        "currency": "USD",
+        "recipient": "acct_9942",
+        "zero": 0
+      }
+    },
+    "expected_audience": "https://mcp.acme-bank.example/v1/mcp",
+    "now_seconds": 1795450150,
+    "permit_jws": "eyJ0eXAiOiJlbnRyb3MtYWdlbnQtcGVybWl0K2p3dCIsImFsZyI6IkVkRFNBIiwia2lkIjoiZW50cm9zLXBlcm1pdC0yMDI2LTExLWEifQ.eyJpc3MiOiJodHRwczovL2FwaS5lbnRyb3MuaW8iLCJzdWIiOiJ1c3JfMDFKOVhLMk04UDRRN1I1UzZUOFY5VzBZMVoiLCJhY3RvciI6eyJpZCI6InNwaWZmZTovL2FjbWUtYmFuay5leGFtcGxlL25zL3Byb2Qvc2Evdm9pY2UtYmFua2luZy1hZ2VudCIsImNsaWVudF9pZCI6Imh0dHBzOi8vYWdlbnRzLmFjbWUtYmFuay5leGFtcGxlLy53ZWxsLWtub3duL29hdXRoLWNsaWVudC5qc29uIiwia2V5X2prdCI6InVCekRHSmY4c2pKdm9RZGxqcW5mMFllTkR4cnRJVTBWUmM1NXI5NzNtRjQifSwiYXVkIjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwianRpIjoiNGY4YzJhMTlkN2UzNGI2MDgxYTVjOWUwMmYzYjRkNWU2YTdiOGM5ZDBlMWYyYTNiNGM1ZDZlN2Y4MDkxYTJiMyIsImlhdCI6MTc5NTQ1MDExMCwiZXhwIjoxNzk1NDUwNDEwLCJyZXF1ZXN0X2RpZ2VzdCI6IjQ2Y2NlM2M4NTVmYWQ4NGVhNjZkYzAzODg0ZjgzZjgzNmNiYjE3Y2Y5MTcxZTQxZWNiMDc4OWY1NTgyNjViZTQiLCJhc3N1cmFuY2VfdGllciI6InZvaWNlX3BsdXNfcGFzc2tleSIsIm1vZGFsaXR5IjpbInZvaWNlX2xpdmVuZXNzIiwid2ViYXV0aG5fdXYiXSwiZnJlc2huZXNzX3ZlcmlmaWVkX2F0IjoxNzk1NDUwMTAwLCJjb250aW51aXR5Ijp7InNlc3Npb25faWQiOiJsa19yb29tX2JhbmtfODgzMV9jYWxsZXJfMDEiLCJtb2RlIjoiY2FsbF9zZXNzaW9uIiwiY2FsbF9jb250aW51aXR5X3ZlcmlmaWVkIjp0cnVlLCJzdGVwX3VwX3RyaWdnZXJlZCI6dHJ1ZSwicHJpb3JfcGVybWl0X2p0aSI6bnVsbH0sInVuaXF1ZW5lc3Nfc3RhdHVzIjoiZW50ZXJwcmlzZV9pZHBfc3ViamVjdCIsInZvaWNlX3ZlcmRpY3RfandzIjoiZXlKMGVYQWlPaUpsYm5SeWIzTXRkbTlwWTJVdGJHbDJaVzVsYzNNcmFuZDBJaXdpWVd4bklqb2lSV1JFVTBFaUxDSnJhV1FpT2lKbGJuUnliM010ZG05cFkyVXRNakF5TmkweE1TMWhJbjAuZXlKcGMzTWlPaUpvZEhSd2N6b3ZMMkZ3YVM1bGJuUnliM011YVc4aUxDSnFkR2tpT2lJNVlqRmxOMk0wTkdFd1pqTTBaVEV4T1RKak9EVXhaRGN3WlRSaE5tWXlNR0l6WXpGa05HVTFaalpoTjJJNFl6bGtNR1V4WmpKaE0ySTBZelZrTm1VM0lpd2lhV0YwSWpveE56azFORFV3TVRBd0xDSmxlSEFpT2pFM09UVTBOVEF5TWpBc0luTmxjM05wYjI1ZmFXUWlPaUpzYTE5eWIyOXRYMkpoYm10Zk9EZ3pNVjlqWVd4c1pYSmZNREVpTENKMlpYSmthV04wSWpvaWJHbHJaV3g1WDJoMWJXRnVJaXdpWTJGc2FXSnlZWFJsWkY5c2JISWlPalF1T0RJc0ltOXdaWEpoZEdsdVoxOXdjbTltYVd4bElqb2lkMlZpY25Salh6RTJheUlzSW0xdlpHVnNYM1psY25OcGIyNGlPaUl3T0dFM1pXRmxPRE0yT0RrMk1HUmhOMll3TWpVeFpqZG1NamxpWm1WaE16VXlPVGhoTTJSaE1HSTJNVFUwTnpnd1pXSTNObVU0WXpneE9UTTJPV0ZtSWl3aWMybG5ibUZzWDNGMVlXeHBkSGtpT25zaWMyNXlYMlJpSWpveU5DNDJMQ0p6Y0dWbFkyaGZiWE1pT2pJeU5EQXNJbU5zYVhCd2FXNW5Jam93TGpBd01EUXNJbU52WkdWalgySmhibVIzYVdSMGFGOW9laUk2T0RBd01IMHNJbkJoY25ScFlXeGZjM0J2YjJaZmMzQmhibk1pT2x0ZExDSmpiMjV6YVhOMFpXNWplVjlrY21sbWRDSTZleUp6ZEdGMGRYTWlPaUpsZG1Gc2RXRjBaV1FpTENKM2FXNWtiM2R6WDJWMllXeDFZWFJsWkNJNk5Dd2labXh2YjNKZmMzQnlaV0ZrWDJSaUlqb3hMamdzSW5SaGFXeGZaR1ZqWVhsZmMzQnlaV0ZrWDJSaUlqb3lMakVzSW5Od1pXTjBjbUZzWDNScGJIUmZaSEpwWm5RaU9qQXVPU3dpY21WaGMyOXVJanB1ZFd4c2ZTd2lZV0p6ZEdGcGJsOXlaV0Z6YjI0aU9tNTFiR3dzSW5KbGRHVnVkR2x2YmlJNkltMWxiVzl5ZVY5dmJteDVJbjAuT1dXaUJJV2xmRmRmYnJNdVBMOWtxUzZfUndQZFRPSE5kQjM5MWJmeE12ZWVHX2phUHFwRTZDYjZoamJwQ1FGdmZTRlItbm5QNlR2OE5vN3BBY2xIQnciLCJ3ZWJhdXRobl9hc3NlcnRpb25fZGlnZXN0IjoiOGNiYzgwMjcyYjAwMjVmMjc3Y2QzMWFjYmFlYjBkN2FhZTVlNGUzYzZiY2NiOWZlYWM0ODU0MTQwOGMzNWQ2MSIsInBvbGljeV9pZCI6IndpcmUtdHJhbnNmZXItaGlnaC12MiIsInNjaXR0X3JlY2VpcHQiOiIwb1JZSDZNQkp3UldaVzUwY205ekxYTmphWFIwTFRJd01qWXRNVEV0WVJrQml3R2hHUUdNb1NDREJRT0RXQ0JVM1drd2xJay12Y09WNnltUlYyeFFHUHhKbi1DUUdja1RiUXNWSm9sWk5GZ2ctOXhTM3FjSDdQUTNWR3J3eGhRbTNHRTlaOERNRkRTOVhSaG5WQmVnd0E5WUlNMHFVejNHQUNoMUlmMlBPWnRJMldPNlhiS09GMUZwODVqZ0s3bHN6SV9rV1FJMGV5SmhjM04xY21GdVkyVmZkR2xsY2lJNkluWnZhV05sWDNCc2RYTmZjR0Z6YzJ0bGVTSXNJbUYxWkNJNkltaDBkSEJ6T2k4dmJXTndMbUZqYldVdFltRnVheTVsZUdGdGNHeGxMM1l4TDIxamNDSXNJbVJsWTJsemFXOXVJam9pWVd4c2IzY2lMQ0psZG1Gc2RXRjBaV1JmWVhRaU9qRTNPVFUwTlRBeE1UQXNJbVp5WlhOb2JtVnpjMTkyWlhKcFptbGxaRjloZENJNk1UYzVOVFExTURFd01Dd2lhblJwSWpvaU5HWTRZekpoTVRsa04yVXpOR0kyTURneFlUVmpPV1V3TW1ZellqUmtOV1UyWVRkaU9HTTVaREJsTVdZeVlUTmlOR00xWkRabE4yWTRNRGt4WVRKaU15SXNJbTF2WkdGc2FYUjVJanBiSW5admFXTmxYMnhwZG1WdVpYTnpJaXdpZDJWaVlYVjBhRzVmZFhZaVhTd2liVzlrWld4ZmRtVnljMmx2YmlJNklqQTRZVGRsWVdVNE16WTRPVFl3WkdFM1pqQXlOVEZtTjJZeU9XSm1aV0V6TlRJNU9HRXpaR0V3WWpZeE5UUTNPREJsWWpjMlpUaGpPREU1TXpZNVlXWWlMQ0p3YjJ4cFkzbGZhV1FpT2lKM2FYSmxMWFJ5WVc1elptVnlMV2hwWjJndGRqSWlMQ0p5WldGemIyNGlPaUpoWTJObGNIUmxaQ0lzSW5KbGNYVmxjM1JmWkdsblpYTjBJam9pTkRaalkyVXpZemcxTldaaFpEZzBaV0UyTm1Sak1ETTRPRFJtT0RObU9ETTJZMkppTVRkalpqa3hOekZsTkRGbFkySXdOemc1WmpVMU9ESTJOV0psTkNJc0luSmxkR1Z1ZEdsdmJpSTZJbTFsYlc5eWVWOXZibXg1SWl3aWMyTm9aVzFoSWpvaVpXNTBjbTl6TFhOamFYUjBMWEJsY20xcGRDMTJNaUo5V0VDclZXNWktaXYyM1B1QnRodEtnOC1UclNEc3RhVGVjWnprQmc4cXItUm5zaWJucWNvOFVkNGZkMHZUQWc2d1ZYU1ByS1phX2lYcGZDSm9zX0ZabF9zSiIsImNuZiI6eyJqa3QiOiJ1QnpER0pmOHNqSnZvUWRsanFuZjBZZU5EeHJ0SVUwVlJjNTVyOTczbUY0In19.EfJlF_lXiYy27vQcYKVFpHZtbN8Nb_kHDBHnj-qeo868-3E3OB0nZnWO4AnoQXi_er0xf402N7XppEX0bF6eCg",
+    "dpop_proof": "eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoidVBfOXlDNHlzNnlRZEp3eEcwZmJzWTBTTzllY3BxYU1nWDc5RGtQWHZHNCIsInkiOiJfbVhrOE1HeUlzejdaM2hiTGNLcDlCRlNMbnhlLUQzWTN3QWZOUThTa3lRIn19.eyJqdGkiOiJkcG9wLWp0aS0yMDI2LTExLTIzLTAwMDEiLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9tY3AuYWNtZS1iYW5rLmV4YW1wbGUvdjEvbWNwIiwiaWF0IjoxNzk1NDUwMTQ1LCJhdGgiOiI4WTVaM0RfbzZmNDc5V0V6V3hRNDdvZ2ZnYmZ6ZFhnWlhwR0tnVEpVUzE4In0.96Owgi2MXaZGyv1twK7HWVJEfN1ceIZc-w0E0KFKn-YsN4Jqx3tNB8TdJsnC1rd_wW6X8BsKlmu8BlrbkMEAZg",
+    "dpop_htm": "POST",
+    "dpop_htu": "https://mcp.acme-bank.example/v1/mcp"
+  }
+}
