@@ -273,9 +273,9 @@ describe("VoiceLivenessClient REST + WebSocket with zero audio leakage", () => {
     ).rejects.toThrow("[redacted]");
   });
 
-  it("streams binary audio over WebSocket and verifies rolling verdict frames", async () => {
+  it("streams binary audio over WebSocket and verifies rolling verdict frames from real MessageEvent and CloseEvent instances", async () => {
     const sent: Array<string | Uint8Array | ArrayBuffer> = [];
-    const listeners = new Map<string, Array<(ev: unknown) => void>>();
+    const target = new EventTarget();
 
     class FakeWebSocket implements WebSocketLike {
       readyState = 1;
@@ -286,15 +286,16 @@ describe("VoiceLivenessClient REST + WebSocket with zero audio leakage", () => {
       send(data: string | Uint8Array | ArrayBuffer) {
         sent.push(data);
       }
-      close() {
-        for (const fn of listeners.get("close") ?? []) {
-          fn({ code: 1000, reason: "done" });
-        }
+      close(code?: number, reason?: string) {
+        target.dispatchEvent(
+          new CloseEvent("close", {
+            code: code ?? 1000,
+            reason: reason ?? "normal_shutdown",
+          }),
+        );
       }
       addEventListener(type: string, listener: (ev: unknown) => void) {
-        const list = listeners.get(type) ?? [];
-        list.push(listener);
-        listeners.set(type, list);
+        target.addEventListener(type, listener as EventListener);
       }
     }
 
@@ -304,6 +305,7 @@ describe("VoiceLivenessClient REST + WebSocket with zero audio leakage", () => {
     });
 
     const verdicts: string[] = [];
+    const closeEvents: Array<{ code?: number; reason?: string }> = [];
     const stream = client.connectStream({
       sessionId: "lk_room_bank_8831_caller_01",
       codec: "opus_16k",
@@ -312,21 +314,29 @@ describe("VoiceLivenessClient REST + WebSocket with zero audio leakage", () => {
       onVerdict: ({ claims }) => {
         if (claims) verdicts.push(claims.verdict);
       },
+      onClose: (info) => closeEvents.push(info),
     });
 
     stream.sendAudioChunk(new Uint8Array([1, 2, 3, 4]));
     stream.flush();
-    for (const fn of listeners.get("message") ?? []) {
-      fn({
-        data: JSON.stringify({ verdict_jws: jwsVectors.valid_voice_verdict.jws }),
-      });
-    }
 
-    await new Promise((r) => setTimeout(r, 20));
-    expect(verdicts).toEqual(["likely_human"]);
+    const frameJson = JSON.stringify({
+      verdict_jws: jwsVectors.valid_voice_verdict.jws,
+    });
+    // Dispatch real DOM/Node MessageEvent (string payload) and binary Uint8Array/ArrayBuffer payloads.
+    target.dispatchEvent(new MessageEvent("message", { data: frameJson }));
+    const encoded = new TextEncoder().encode(frameJson);
+    target.dispatchEvent(new MessageEvent("message", { data: encoded }));
+    target.dispatchEvent(
+      new MessageEvent("message", { data: encoded.buffer.slice(0) }),
+    );
+
+    await new Promise((r) => setTimeout(r, 30));
+    expect(verdicts).toEqual(["likely_human", "likely_human", "likely_human"]);
     expect(sent[0]).toBeInstanceOf(Uint8Array);
-    stream.close();
+    stream.close(1000, "stream_complete");
     expect(stream.closed).toBe(true);
+    expect(closeEvents).toEqual([{ code: 1000, reason: "stream_complete" }]);
   });
 });
 

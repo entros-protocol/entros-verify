@@ -9,6 +9,7 @@
 
 import {
   base64UrlEncode,
+  decodeUtf8Strict,
   isPlainRecord,
   isStrictHttpsOrLoopbackUri,
 } from "../permit/encoding";
@@ -172,6 +173,39 @@ function toWebSocketUrl(baseUrl: string, query: URLSearchParams): string {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.search = query.toString();
   return url.toString();
+}
+
+function extractWebSocketMessageText(event: unknown): string | null {
+  if (typeof event !== "object" || event === null || !("data" in event)) {
+    return null;
+  }
+  const data = (event as { data: unknown }).data;
+  if (typeof data === "string") return data;
+  if (data instanceof Uint8Array) return decodeUtf8Strict(data);
+  if (data instanceof ArrayBuffer) return decodeUtf8Strict(new Uint8Array(data));
+  if (ArrayBuffer.isView(data)) {
+    return decodeUtf8Strict(
+      new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
+    );
+  }
+  return null;
+}
+
+function extractWebSocketCloseInfo(event: unknown): {
+  code?: number;
+  reason?: string;
+} {
+  if (typeof event !== "object" || event === null) return {};
+  const rawCode = "code" in event ? (event as { code: unknown }).code : undefined;
+  const rawReason =
+    "reason" in event ? (event as { reason: unknown }).reason : undefined;
+  return {
+    code: typeof rawCode === "number" ? rawCode : undefined,
+    reason:
+      typeof rawReason === "string"
+        ? sanitizeVoiceErrorDetail(rawReason)
+        : undefined,
+  };
 }
 
 export class VoiceLivenessClient {
@@ -379,10 +413,7 @@ export class VoiceLivenessClient {
     });
 
     ws.addEventListener("message", (event: unknown) => {
-      const raw =
-        isPlainRecord(event) && typeof event.data === "string"
-          ? event.data
-          : null;
+      const raw = extractWebSocketMessageText(event);
       if (raw === null) return;
 
       let parsed: unknown;
@@ -450,15 +481,8 @@ export class VoiceLivenessClient {
 
     ws.addEventListener("close", (event: unknown) => {
       isClosed = true;
-      const code =
-        isPlainRecord(event) && typeof event.code === "number"
-          ? event.code
-          : undefined;
-      const reason =
-        isPlainRecord(event) && typeof event.reason === "string"
-          ? sanitizeVoiceErrorDetail(event.reason)
-          : undefined;
-      this.#onDebug?.({
+      const { code, reason } = extractWebSocketCloseInfo(event);
+      onDebug?.({
         type: "stream_close",
         sessionId: options.sessionId,
       });
