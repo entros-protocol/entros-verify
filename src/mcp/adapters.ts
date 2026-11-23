@@ -43,7 +43,11 @@ export interface OpenAiMcpApprovalSettlementEnvelope {
   response: OpenAiMcpApprovalResponse;
 }
 
-/** HumanLayer (Apache-2.0) paused function call specification. */
+/**
+ * @deprecated HumanLayer upstream has been discontinued. Preserved for v1
+ * backwards compatibility only; use MCP 2026-07-28 MRTR (`createStatelessMcpApprovalGate`)
+ * or MCP 2025-11-25 URL-Mode Elicitation (`createUrlElicitationChallenge`) for v2.
+ */
 export interface HumanLayerEntrosState {
   version: 1;
   permitId: string;
@@ -248,6 +252,10 @@ export async function settleOpenAiMcpApproval(
 }
 
 /**
+ * @deprecated HumanLayer upstream has been discontinued. Preserved for v1
+ * backwards compatibility only; use `createStatelessMcpApprovalGate` or
+ * `createUrlElicitationChallenge` for new v2 integrations.
+ *
  * Wraps an Entros MCP approval challenge into a HumanLayer-compatible pause
  * payload carrying the signing URL, permit ID, expiry, and action digest.
  */
@@ -309,6 +317,10 @@ function splitHumanLayerFn(
 }
 
 /**
+ * @deprecated HumanLayer upstream has been discontinued. Preserved for v1
+ * backwards compatibility only; use `createStatelessMcpApprovalGate` or
+ * `verifyAgentPermitV2` for new v2 integrations.
+ *
  * Verifies a HumanLayer pause/resume callback together with the Entros
  * single-use `AgentPermit` settlement bundle before allowing tool resumption.
  */

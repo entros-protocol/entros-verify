@@ -16,7 +16,11 @@
     "outDir": "dist",
     "rootDir": "src",
     "skipLibCheck": true,
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@noble/curves/ed25519": ["./src/compat/noble-ed25519-v1.ts"],
+      "@noble/hashes/sha2": ["./node_modules/@noble/hashes/sha2.d.ts"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "test"]

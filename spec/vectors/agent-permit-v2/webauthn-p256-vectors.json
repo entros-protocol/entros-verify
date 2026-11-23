@@ -1,0 +1,162 @@
+{
+  "schema_version": 2,
+  "challenge_derivation": {
+    "jti": "4f8c2a19d7e34b6081a5c9e02f3b4d5e6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3",
+    "request_digest": "46cce3c855fad84ea66dc03884f83f836cbb17cf9171e41ecb0789f558265be4",
+    "expected_challenge_hex": "af849a06dde9cba03dd2c4344d50ebe3100ef4103784985c457c017f6b125b24",
+    "expected_challenge_b64url": "r4SaBt3py6A90sQ0TVDr4xAO9BA3hJhcRXwBf2sSWyQ"
+  },
+  "public_key": {
+    "uncompressed_hex": "04c0cba8d3ac2c347e9f5bdc93c04d05ac534626efe2b762c398d410311df3e86d124e07e5bd7a8ec0c6bfb708028ae0f6d12d621199dcab1e431b4b9ad413b7d6",
+    "uncompressed_b64url": "BMDLqNOsLDR-n1vck8BNBaxTRibv4rdiw5jUEDEd8-htEk4H5b16jsDGv7cIAorg9tEtYhGZ3KseQxtLmtQTt9Y",
+    "jwk": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "wMuo06wsNH6fW9yTwE0FrFNGJu_it2LDmNQQMR3z6G0",
+      "y": "Ek4H5b16jsDGv7cIAorg9tEtYhGZ3KseQxtLmtQTt9Y"
+    }
+  },
+  "expected_rp_id": "approve.entros.io",
+  "expected_origin": "https://approve.entros.io",
+  "valid": [
+    {
+      "id": "webauthn-valid-low-s",
+      "description": "Valid P-256 DER assertion with low-S (s <= n/2), UP=1, UV=1",
+      "stored_sign_count": 41,
+      "expected_assertion_digest": "8cbc80272b0025f277cd31acbaeb0d7aae5e4e3c6bccb9feac48541408c35d61",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEQCIAlajQLHSBMCgERsYtsN8Y5JtXXPyW_zZ64_le4k4MbaAiBzyMoLO8bhvAgrzFJgGaSDHNDdP3yEOOUae_O_dfooGw"
+      },
+      "is_high_s": false
+    },
+    {
+      "id": "webauthn-valid-high-s",
+      "description": "Valid hardware-style P-256 DER assertion with high-S (s > n/2), UP=1, UV=1; MUST pass under lowS:false",
+      "stored_sign_count": 42,
+      "expected_assertion_digest": "84f90fac4eb1dd6a70f98c5ee45cedd91d4bb11eecdf51fb152bf2f12965e3b7",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKw",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEUCIAFL1N0PetLDZUVbkB8rD8wPvLf_-btbrPesA6zpcQz9AiEA50Tu7AHNHHrg2NAC_xv7iICFdAbO_ietAkfaUmRafgs"
+      },
+      "is_high_s": true
+    }
+  ],
+  "invalid": [
+    {
+      "id": "webauthn-reject-up-zero",
+      "description": "UP flag bit 0 is 0 (flags=0x04) must fail with webauthn_uv_required",
+      "expected_reason": "webauthn_uv_required",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUEAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEQCIDFnGHytbBSccn5LC8G-ffrGTotBnFO9uEGbXM9n-r8XAiAJlOu3e19sivW1EEo5IMNp7HEjXsVPLAO-PWKnNbzneg"
+      }
+    },
+    {
+      "id": "webauthn-reject-uv-zero",
+      "description": "UV flag bit 2 is 0 (flags=0x01) must fail with webauthn_uv_required",
+      "expected_reason": "webauthn_uv_required",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUBAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEUCIQCK3TSv56oxCc2f_bwro3BAEhDLFGlhYT5LMnNKy0azIQIgHoCQ-9ZydbdSvuGvSUsZvfmD3m0H-ko5_GgmPb9-Kjs"
+      }
+    },
+    {
+      "id": "webauthn-reject-wrong-rpid-hash",
+      "description": "authenticatorData rpIdHash for wrong RP ID must fail",
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "nBgN4M1pnueIl8R8_bPn7h11kG4xt3RqR0fepTaQmDcFAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEUCIQCvLWdqVhYtbfTFCgM8U9Q-KVFNKJlO3gKmCCaxfyWKuwIgBx6XdY2QcpT2mrUI8GHTNkT03dYe_r_Bw9B4OmHCOKM"
+      }
+    },
+    {
+      "id": "webauthn-reject-wrong-origin",
+      "description": "clientDataJSON origin mismatch must fail",
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vZXZpbC5leGFtcGxlIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+        "signature": "MEQCIAgXHCtNs7A8qmjnaeXGSNiqmEFI9s6jFbmULpQzEj-wAiAs46wHqx-WZI6mTLId3vfbqsfmLLNpyNVZLQHjzbSOpA"
+      }
+    },
+    {
+      "id": "webauthn-reject-mutated-challenge",
+      "description": "clientDataJSON challenge mismatch must fail",
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicm9TYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEUCIQCU3mbzRiE-HnSPHD2GwJnI-B1rLC4RQMDOIUV9SsR99AIgGTzBwtdtiUJviVAWqUTY07UVcElikYd0Kl6L70PQqAg"
+      }
+    },
+    {
+      "id": "webauthn-reject-wrong-type",
+      "description": "clientDataJSON type != webauthn.get must fail",
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEUCIQCEaWWpm9t1g_XQai1FQuEBQx3Bs1qBWYH8bdNteSXKLgIgSkWBJTnLVIutavdaxALkbDPuHVbIm1Rf7As4LVs7hLQ"
+      }
+    },
+    {
+      "id": "webauthn-reject-cross-origin",
+      "description": "clientDataJSON crossOrigin=true when disallowed must fail",
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6dHJ1ZX0",
+        "signature": "MEUCIQCEOFy0W5OEGD_Y_pIWK1ny7ij3BqChJEwvWY5zkPhwLAIgR4QQPQuPFUJPjjPLSw6YbFJAwIY-JEljkQq377nuDFQ"
+      }
+    },
+    {
+      "id": "webauthn-reject-sign-count-rollback",
+      "description": "signCount <= stored_sign_count (both non-zero) must fail",
+      "stored_sign_count": 42,
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKQ",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEQCIClwoT1YoaA6GCRSCIzakA-n3yWTTmL4VAbTQ75CVkKnAiBn57y_bLb7CxECmVuMah4mYf4SuOwKBinbYWvhFQZN6w"
+      }
+    },
+    {
+      "id": "webauthn-reject-corrupted-signature",
+      "description": "Corrupted P-256 DER signature must fail",
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAAKg",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEQCIAlajQLHSBMCgERsYtsN8Y5JtXXPyW_zZ64_le4k4MbaAiBzyMoLO8bhvAgrzFJgGaSDHNDdP3yEOOUae_O_dfooGg"
+      }
+    },
+    {
+      "id": "webauthn-reject-short-auth-data",
+      "description": "authenticatorData shorter than 37 bytes must fail",
+      "expected_reason": "webauthn_assertion_invalid",
+      "assertion": {
+        "credential_id": "dtqpyc9yHNYjotUJHEUWQQ49dS2Vblz5rAo-ghzH6D8",
+        "authenticator_data": "ttgDdcX3aWXjG6A6hbWj4YLoNWJXDP-idyLnNUr8OLUFAAAA",
+        "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjRTYUJ0M3B5NkE5MHNRMFRWRHI0eEFPOUJBM2hKaGNSWHdCZjJzU1d5USIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwcm92ZS5lbnRyb3MuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "signature": "MEUCIQCwAuQ506GUwvPMUgwuVxIv2E2pN7ZNB5T9LLYw5X_P1gIgcc6rOr9ZuiXdhMR4bgKbgpB3DGsOMrC6TOWdiU7YQIc"
+      }
+    }
+  ]
+}

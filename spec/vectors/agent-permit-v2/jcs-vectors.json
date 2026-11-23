@@ -1,0 +1,200 @@
+{
+  "schema_version": 2,
+  "domain_prefix": "Entros-Agent-Permit-v2\n",
+  "valid": [
+    {
+      "id": "jcs-v1-transfer",
+      "description": "Nested keys, 250.0 -> 250, -0 -> 0 (ADR §3.3)",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 250,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "raw_json": "{\"tool\":\"transfer_funds\",\"server\":\"treasury-mcp\",\"kind\":\"mcp.tool_call\",\"arguments\":{\"zero\":-0.0,\"recipient\":\"acct_9942\",\"currency\":\"USD\",\"amount\":250.0}}",
+      "expected_canonical_json": "{\"arguments\":{\"amount\":250,\"currency\":\"USD\",\"recipient\":\"acct_9942\",\"zero\":0},\"kind\":\"mcp.tool_call\",\"server\":\"treasury-mcp\",\"tool\":\"transfer_funds\"}",
+      "expected_request_digest": "46cce3c855fad84ea66dc03884f83f836cbb17cf9171e41ecb0789f558265be4"
+    },
+    {
+      "id": "jcs-v1-tampered",
+      "description": "Prompt-injected amount 250 -> 25000 (ADR §3.3)",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {
+          "amount": 25000,
+          "currency": "USD",
+          "recipient": "acct_9942",
+          "zero": 0
+        }
+      },
+      "raw_json": "{\"kind\":\"mcp.tool_call\",\"server\":\"treasury-mcp\",\"tool\":\"transfer_funds\",\"arguments\":{\"amount\":25000,\"currency\":\"USD\",\"recipient\":\"acct_9942\",\"zero\":0}}",
+      "expected_canonical_json": "{\"arguments\":{\"amount\":25000,\"currency\":\"USD\",\"recipient\":\"acct_9942\",\"zero\":0},\"kind\":\"mcp.tool_call\",\"server\":\"treasury-mcp\",\"tool\":\"transfer_funds\"}",
+      "expected_request_digest": "8ce378a7b4313100c16b45b894e8311d72f2ea2d00d1c01cb061cd583b0afd3c"
+    },
+    {
+      "id": "jcs-v2-utf16",
+      "description": "Non-BMP U+1D11E (surrogate pair D834 DD1E) sorts before BMP U+E000 (ADR §3.3)",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": "unicode-mcp",
+        "tool": "check_order",
+        "arguments": {
+          "": 2,
+          "𝄞": 1
+        }
+      },
+      "expected_canonical_json": "{\"arguments\":{\"𝄞\":1,\"\":2},\"kind\":\"mcp.tool_call\",\"server\":\"unicode-mcp\",\"tool\":\"check_order\"}",
+      "expected_request_digest": "d83e9f3cf65e27f183925a3a81aaa8bf695f6c844f5b51f5c75756765071c58b"
+    },
+    {
+      "id": "jcs-v3-ieee754",
+      "description": "ES6 IEEE-754 float serialization edge cases (ADR §3.3)",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": "math-mcp",
+        "tool": "check_ieee754",
+        "arguments": {
+          "a": 0,
+          "b": 1,
+          "c": 100000000000000000000,
+          "d": 1e+21,
+          "e": 0.000001,
+          "f": 1e-7
+        }
+      },
+      "raw_json": "{\"kind\":\"mcp.tool_call\",\"server\":\"math-mcp\",\"tool\":\"check_ieee754\",\"arguments\":{\"a\":-0.0,\"b\":1.0,\"c\":1e20,\"d\":1e21,\"e\":1e-6,\"f\":1e-7}}",
+      "expected_canonical_json": "{\"arguments\":{\"a\":0,\"b\":1,\"c\":100000000000000000000,\"d\":1e+21,\"e\":0.000001,\"f\":1e-7},\"kind\":\"mcp.tool_call\",\"server\":\"math-mcp\",\"tool\":\"check_ieee754\"}",
+      "expected_request_digest": "aa9c2b413363cda441e6129839025f5ad42d7890bb0a8829839883e721799fd5"
+    },
+    {
+      "id": "jcs-v4-rar-and-escapes",
+      "description": "Optional RFC 9396 rar_details and RFC 8785 minimal string escaping",
+      "input": {
+        "kind": "http.action",
+        "server": "payments-api",
+        "tool": "wire_transfer",
+        "arguments": {
+          "memo": "line1\nline2\t\"quoted\"\\slash\b\f\r\u0000",
+          "nested": [
+            true,
+            false,
+            null,
+            0
+          ]
+        },
+        "rar_details": [
+          {
+            "type": "payment_initiation",
+            "instructedAmount": {
+              "currency": "USD",
+              "amount": "250.00"
+            }
+          }
+        ]
+      },
+      "expected_canonical_json": "{\"arguments\":{\"memo\":\"line1\\nline2\\t\\\"quoted\\\"\\\\slash\\b\\f\\r\\u0000\",\"nested\":[true,false,null,0]},\"kind\":\"http.action\",\"rar_details\":[{\"instructedAmount\":{\"amount\":\"250.00\",\"currency\":\"USD\"},\"type\":\"payment_initiation\"}],\"server\":\"payments-api\",\"tool\":\"wire_transfer\"}",
+      "expected_request_digest": "10378f45faf2775cead6f8e6a5d878ea436e0a10cb74c817991cae4530e23033"
+    }
+  ],
+  "reject": [
+    {
+      "id": "reject-lone-high-surrogate",
+      "case_type": "lone_high_surrogate",
+      "code_unit_hex": "d800",
+      "description": "Unpaired high UTF-16 surrogate U+D800 must be rejected"
+    },
+    {
+      "id": "reject-lone-low-surrogate",
+      "case_type": "lone_low_surrogate",
+      "code_unit_hex": "dc00",
+      "description": "Unpaired low UTF-16 surrogate U+DC00 must be rejected"
+    },
+    {
+      "id": "reject-nan",
+      "case_type": "non_finite_number",
+      "value_kind": "NaN",
+      "description": "IEEE-754 NaN must be rejected"
+    },
+    {
+      "id": "reject-pos-infinity",
+      "case_type": "non_finite_number",
+      "value_kind": "Infinity",
+      "description": "IEEE-754 +Infinity must be rejected"
+    },
+    {
+      "id": "reject-neg-infinity",
+      "case_type": "non_finite_number",
+      "value_kind": "-Infinity",
+      "description": "IEEE-754 -Infinity must be rejected"
+    },
+    {
+      "id": "reject-depth-33",
+      "case_type": "max_depth_exceeded",
+      "depth": 33,
+      "description": "Nesting depth 33 exceeds maximum depth 32 and must be rejected"
+    },
+    {
+      "id": "reject-trailing-whitespace-server",
+      "case_type": "action_validation",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp ",
+        "tool": "transfer_funds",
+        "arguments": {}
+      },
+      "description": "Trailing whitespace in action.server must be rejected"
+    },
+    {
+      "id": "reject-trailing-whitespace-tool",
+      "case_type": "action_validation",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds ",
+        "arguments": {}
+      },
+      "description": "Trailing whitespace in action.tool must be rejected"
+    },
+    {
+      "id": "reject-leading-whitespace-server",
+      "case_type": "action_validation",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": " treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {}
+      },
+      "description": "Leading whitespace in action.server must be rejected"
+    },
+    {
+      "id": "reject-invalid-kind",
+      "case_type": "action_validation",
+      "input": {
+        "kind": "invalid.kind",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {}
+      },
+      "description": "Unsupported action.kind must be rejected"
+    },
+    {
+      "id": "reject-null-rar-details",
+      "case_type": "action_validation",
+      "input": {
+        "kind": "mcp.tool_call",
+        "server": "treasury-mcp",
+        "tool": "transfer_funds",
+        "arguments": {},
+        "rar_details": null
+      },
+      "description": "Null rar_details must be omitted rather than null"
+    }
+  ]
+}

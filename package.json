@@ -1,7 +1,7 @@
 {
   "name": "@entros/verify",
-  "version": "0.7.0",
-  "description": "React popup component for wallet-connected Entros verification on Solana devnet",
+  "version": "1.0.0",
+  "description": "Live human-presence and cryptographic consent firewall SDK for Voice-AI and autonomous MCP agents",
   "license": "MIT",
   "homepage": "https://entros.io",
   "repository": {
@@ -13,11 +13,16 @@
   },
   "keywords": [
     "entros",
-    "solana",
-    "proof-of-personhood",
+    "voice-liveness",
+    "voice-ai",
+    "mcp",
+    "agent-permit",
+    "passkey",
+    "webauthn",
+    "scitt",
+    "consent",
     "verification",
-    "react",
-    "captcha"
+    "solana"
   ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -27,6 +32,31 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./voice": {
+      "types": "./dist/voice.d.ts",
+      "import": "./dist/voice.mjs",
+      "require": "./dist/voice.js"
+    },
+    "./permit": {
+      "types": "./dist/permit.d.ts",
+      "import": "./dist/permit.mjs",
+      "require": "./dist/permit.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.mjs",
+      "require": "./dist/mcp.js"
+    },
+    "./browser-signals": {
+      "types": "./dist/browser-signals.d.ts",
+      "import": "./dist/browser-signals.mjs",
+      "require": "./dist/browser-signals.js"
+    },
+    "./solana": {
+      "types": "./dist/solana.d.ts",
+      "import": "./dist/solana.mjs",
+      "require": "./dist/solana.js"
     },
     "./policy": {
       "types": "./dist/policy.d.ts",
@@ -38,15 +68,10 @@
       "import": "./dist/agent-permit.mjs",
       "require": "./dist/agent-permit.js"
     },
-    "./solana": {
-      "types": "./dist/solana.d.ts",
-      "import": "./dist/solana.mjs",
-      "require": "./dist/solana.js"
-    },
-    "./mcp": {
-      "types": "./dist/mcp.d.ts",
-      "import": "./dist/mcp.mjs",
-      "require": "./dist/mcp.js"
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.mjs",
+      "require": "./dist/react.js"
     }
   },
   "files": [
@@ -62,15 +87,24 @@
     "typecheck": "tsc --noEmit",
     "check-licenses": "node scripts/check-licenses.mjs",
     "verify-publish-contents": "node scripts/verify-publish-contents.mjs",
-    "prepublishOnly": "npm run typecheck && npm test && npm run check-licenses && npm run build && npm run verify-publish-contents"
+    "prepublishOnly": "npm run typecheck && npm test && npm run check-licenses -- --clean-room && npm run build && npm run verify-publish-contents"
   },
   "dependencies": {
-    "@noble/curves": "^1.9.7",
-    "@noble/hashes": "^1.8.0"
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "jose": "^6.2.18"
   },
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
