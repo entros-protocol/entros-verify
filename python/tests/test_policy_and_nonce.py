@@ -314,5 +314,127 @@ def test_voice_model_version_pin_and_partial_spoof_probability_ceiling() -> None
     assert not res_prob.ok and res_prob.reason == RefusalCode.PARTIAL_SPOOF_DETECTED
 
 
+def test_policy_parity_modality_ordering_cnf_mismatch_and_uniqueness_refusal() -> None:
+    priv, jwks = _make_issuer()
+    action = _base_action()
+    digest = hash_action_v2(action)
+    now = 1795450150
+    audience = "https://mcp.acme.example/v1/mcp"
+
+    def _mint(overrides: dict[str, object]) -> str:
+        payload: dict[str, object] = {
+            "iss": "https://api.entros.io",
+            "sub": "user-1",
+            "actor": {"id": "spiffe://acme.example/agent"},
+            "aud": audience,
+            "jti": "5" * 64,
+            "iat": now - 10,
+            "exp": now + 290,
+            "request_digest": digest,
+            "assurance_tier": "passkey_webauthn_uv",
+            "modality": ["webauthn_uv"],
+            "freshness_verified_at": now - 20,
+            "continuity": {"session_id": "sess-1", "mode": "step_up_only"},
+            "uniqueness_status": "enterprise_idp_subject",
+            "voice_verdict_jws": None,
+            "webauthn_assertion_digest": "a" * 64,
+            "policy_id": "p-v2",
+            "scitt_receipt": None,
+        }
+        payload.update(overrides)
+        return sign_eddsa_compact_jws(
+            private_key=priv,
+            kid="k1",
+            typ=AGENT_PERMIT_TYP,
+            payload=payload,
+        )
+
+    base_policy = PolicyV2(
+        policy_id="p-v2",
+        allowed_assurance_tiers=["passkey_webauthn_uv"],
+        required_modalities=["webauthn_uv"],
+        max_evidence_age_seconds=120,
+    )
+
+    # Unsorted modality list -> invalid_permit.
+    unsorted_jws = _mint({"modality": ["webauthn_uv", "voice_liveness"]})
+    res_unsorted = verify_agent_permit_v2(
+        unsorted_jws,
+        policy=base_policy,
+        expected_audience=audience,
+        jwks=jwks,
+        action=action,
+        now_seconds=now,
+    )
+    assert not res_unsorted.ok and res_unsorted.reason == RefusalCode.INVALID_PERMIT
+
+    # Duplicate modality list -> invalid_permit.
+    dup_jws = _mint({"modality": ["webauthn_uv", "webauthn_uv"]})
+    res_dup = verify_agent_permit_v2(
+        dup_jws,
+        policy=base_policy,
+        expected_audience=audience,
+        jwks=jwks,
+        action=action,
+        now_seconds=now,
+    )
+    assert not res_dup.ok and res_dup.reason == RefusalCode.INVALID_PERMIT
+
+    # cnf.jkt != actor.key_jkt -> invalid_permit (Step 7 structural invariant).
+    cnf_mismatch_jws = _mint(
+        {
+            "actor": {
+                "id": "spiffe://acme.example/agent",
+                "key_jkt": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            },
+            "cnf": {"jkt": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"},
+        }
+    )
+    res_cnf = verify_agent_permit_v2(
+        cnf_mismatch_jws,
+        policy=base_policy,
+        expected_audience=audience,
+        jwks=jwks,
+        action=action,
+        now_seconds=now,
+    )
+    assert not res_cnf.ok and res_cnf.reason == RefusalCode.INVALID_PERMIT
+
+    # uniqueness_requirement mismatch -> assurance_downgrade.
+    session_policy = PolicyV2(
+        policy_id="p-v2",
+        allowed_assurance_tiers=["passkey_webauthn_uv"],
+        required_modalities=["webauthn_uv"],
+        max_evidence_age_seconds=120,
+        uniqueness_requirement="require_session_bound",
+    )
+    res_unmeasured = verify_agent_permit_v2(
+        _mint({"uniqueness_status": "unmeasured"}),
+        policy=session_policy,
+        expected_audience=audience,
+        jwks=jwks,
+        action=action,
+        now_seconds=now,
+    )
+    assert not res_unmeasured.ok and res_unmeasured.reason == RefusalCode.ASSURANCE_DOWNGRADE
+
+    idp_policy = PolicyV2(
+        policy_id="p-v2",
+        allowed_assurance_tiers=["passkey_webauthn_uv"],
+        required_modalities=["webauthn_uv"],
+        max_evidence_age_seconds=120,
+        uniqueness_requirement="require_enterprise_idp_subject",
+    )
+    res_session = verify_agent_permit_v2(
+        _mint({"uniqueness_status": "session_bound"}),
+        policy=idp_policy,
+        expected_audience=audience,
+        jwks=jwks,
+        action=action,
+        now_seconds=now,
+    )
+    assert not res_session.ok and res_session.reason == RefusalCode.ASSURANCE_DOWNGRADE
+
+
 def test_all_31_refusal_codes_defined() -> None:
     assert len(list(RefusalCode)) == 31

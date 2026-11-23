@@ -93,6 +93,28 @@ class JwksKeySource(Protocol):
     def get_key_async(self, kid: str) -> Awaitable[KeyLookupResult]: ...
 
 
+class _RevokedKidsJwksWrapper:
+    """Wrap an existing JwksKeySource with additional caller-supplied revoked kids."""
+
+    def __init__(
+        self,
+        inner: JwksKeySource,
+        revoked_kids: set[str] | frozenset[str],
+    ) -> None:
+        self._inner = inner
+        self._revoked_kids = frozenset(revoked_kids)
+
+    def get_key(self, kid: str) -> KeyLookupResult:
+        if kid in self._revoked_kids:
+            return KeyLookupResult(status="revoked")
+        return self._inner.get_key(kid)
+
+    async def get_key_async(self, kid: str) -> KeyLookupResult:
+        if kid in self._revoked_kids:
+            return KeyLookupResult(status="revoked")
+        return await self._inner.get_key_async(kid)
+
+
 def as_jwks_source(
     source: JwksKeySource | Mapping[str, object],
     *,
@@ -101,6 +123,8 @@ def as_jwks_source(
     """Adapt a raw JWKS mapping or existing provider into a JwksKeySource."""
     if isinstance(source, Mapping):
         return StaticJwksProvider(source, revoked_kids=revoked_kids)
+    if revoked_kids:
+        return _RevokedKidsJwksWrapper(source, revoked_kids)
     return source
 
 

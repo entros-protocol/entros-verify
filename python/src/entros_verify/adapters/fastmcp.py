@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlencode
 
-from entros_verify.canonical import hash_action_v2
+from entros_verify.canonical import canonicalize_jcs_bytes, hash_action_v2
 from entros_verify.jwks import JwksKeySource
 from entros_verify.jws import b64url_decode_nopad, b64url_encode_nopad
 from entros_verify.models import (
@@ -31,11 +31,68 @@ from entros_verify.models import (
     VerificationResult,
     WebAuthnAssertionInput,
 )
-from entros_verify.nonce_store import PermitNonceStoreV2
+from entros_verify.nonce_store import (
+    NonceConsumeResult,
+    PermitNonceRecord,
+    PermitNonceStoreV2,
+)
 from entros_verify.policy import verify_agent_permit_v2_async
 
 McpConsentMode = Literal["mcp_mrtr", "sep_1036"]
 STEP_UP_SCOPE = "entros:permit:step_up"
+
+
+class _JtiBoundNonceStore:
+    """Wrap a PermitNonceStoreV2 so consume_once accepts only the requestState jti."""
+
+    def __init__(self, inner: PermitNonceStoreV2, expected_jti: str) -> None:
+        self._inner = inner
+        self._expected_jti = expected_jti
+
+    def register(
+        self,
+        *,
+        jti: str,
+        expires_at: int,
+        created_at: int,
+        request_digest: str | None = None,
+        aud: str | None = None,
+        policy_id: str | None = None,
+    ) -> Awaitable[None] | None:
+        return self._inner.register(
+            jti=jti,
+            expires_at=expires_at,
+            created_at=created_at,
+            request_digest=request_digest,
+            aud=aud,
+            policy_id=policy_id,
+        )
+
+    def peek(self, jti: str) -> Awaitable[PermitNonceRecord | None] | PermitNonceRecord | None:
+        return self._inner.peek(jti)
+
+    def consume_once(
+        self,
+        *,
+        jti: str,
+        now_seconds: int,
+        expires_at: int,
+        require_registered: bool = False,
+        request_digest: str | None = None,
+        aud: str | None = None,
+        policy_id: str | None = None,
+    ) -> Awaitable[NonceConsumeResult] | NonceConsumeResult:
+        if not hmac.compare_digest(jti.encode("utf-8"), self._expected_jti.encode("utf-8")):
+            return NonceConsumeResult(status="not_found")
+        return self._inner.consume_once(
+            jti=jti,
+            now_seconds=now_seconds,
+            expires_at=expires_at,
+            require_registered=require_registered,
+            request_digest=request_digest,
+            aud=aud,
+            policy_id=policy_id,
+        )
 
 
 @dataclass(frozen=True)
@@ -62,9 +119,7 @@ def sign_request_state(claims: RequestStateClaims, secret: bytes) -> str:
         "iat": claims.iat,
         "exp": claims.exp,
     }
-    payload_b64 = b64url_encode_nopad(
-        json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    )
+    payload_b64 = b64url_encode_nopad(canonicalize_jcs_bytes(body, field="request_state"))
     mac = hmac.new(secret, payload_b64.encode("ascii"), hashlib.sha256).digest()
     return f"{payload_b64}.{b64url_encode_nopad(mac)}"
 
@@ -288,7 +343,8 @@ def require_human_consent(
                     "requestState": state_token,
                 }
 
-            # Round 2: If requestState was supplied (MRTR), verify its HMAC and action binding.
+            # Round 2: If requestState was supplied (MRTR), verify its HMAC and action/jti binding.
+            effective_nonce_store: PermitNonceStoreV2 = nonce_store
             if active_mode == "mcp_mrtr" and request_state_raw is not None:
                 if not isinstance(request_state_raw, str):
                     return _denial_response(RefusalCode.INVALID_PERMIT, "Malformed requestState")
@@ -316,6 +372,7 @@ def require_human_consent(
                         RefusalCode.POLICY_MISMATCH,
                         "requestState policy_id mismatch",
                     )
+                effective_nonce_store = _JtiBoundNonceStore(nonce_store, claims.jti)
 
             webauthn_input = (
                 webauthn_raw
@@ -345,7 +402,7 @@ def require_human_consent(
                 now_seconds=now,
                 webauthn_assertion=webauthn_input,
                 dpop=dpop_input,
-                nonce_store=nonce_store,
+                nonce_store=effective_nonce_store,
                 require_registered_nonce=require_registered_nonce,
             )
             if not result.ok:

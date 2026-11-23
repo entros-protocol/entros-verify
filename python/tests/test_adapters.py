@@ -15,7 +15,9 @@ from entros_verify import (
     ScittDecisionPayload,
     ScittReceiptResult,
     StaticJwksProvider,
+    b64url_decode_nopad,
     b64url_encode_nopad,
+    canonicalize_jcs_bytes,
     create_scitt_receipt,
     hash_action_v2,
     sign_eddsa_compact_jws,
@@ -27,6 +29,7 @@ from entros_verify.adapters import (
     format_insufficient_scope_header,
     require_human_consent,
 )
+from entros_verify.adapters.fastmcp import RequestStateClaims, sign_request_state
 
 
 @dataclass
@@ -348,3 +351,121 @@ async def test_fastmcp_mrtr_and_sep1036_consent_flows() -> None:
     # HTTP 403 insufficient_scope helper preserves existing scopes.
     header = format_insufficient_scope_header("mcp:tools:read mcp:tools:write")
     assert header == 'Bearer error="insufficient_scope", scope="mcp:tools:read mcp:tools:write entros:permit:step_up"'
+
+
+async def test_fastmcp_mrtr_enforces_request_state_jti_binding_and_jcs() -> None:
+    priv, jwks = _make_key_and_jwks()
+    now = 1795450150
+    audience = "https://mcp.acme.example/v1/mcp"
+    policy = PolicyV2(
+        policy_id="fastmcp-jti-bind-v2",
+        allowed_assurance_tiers=["passkey_webauthn_uv"],
+        required_modalities=["webauthn_uv"],
+        max_evidence_age_seconds=120,
+    )
+    store = InMemoryPermitNonceStoreV2()
+    executions = [0]
+
+    secret = b"mrtr-binding-shared-secret-32bytes!"
+    claims = RequestStateClaims(
+        jti="a" * 64,
+        request_digest="b" * 64,
+        aud=audience,
+        policy_id=policy.policy_id,
+        iat=now,
+        exp=now + 300,
+    )
+    token = sign_request_state(claims, secret)
+    raw_payload = b64url_decode_nopad(token.split(".", 1)[0])
+    assert raw_payload == canonicalize_jcs_bytes(
+        {
+            "jti": claims.jti,
+            "request_digest": claims.request_digest,
+            "aud": claims.aud,
+            "policy_id": claims.policy_id,
+            "iat": claims.iat,
+            "exp": claims.exp,
+        }
+    )
+
+    @require_human_consent(
+        policy=policy,
+        audience=audience,
+        nonce_store=store,
+        jwks=jwks,
+        server="treasury-mcp",
+        protocol_mode="mcp_mrtr",
+        request_state_secret=secret,
+        clock=lambda: now,
+    )
+    async def wire_funds(amount: int, destination: str) -> dict[str, object]:
+        executions[0] += 1
+        return {"ok": True, "amount": amount, "destination": destination}
+
+    round1 = await wire_funds(amount=100, destination="acct_1")
+    assert isinstance(round1, dict) and round1["resultType"] == "input_required"
+    reqs = round1["inputRequests"]
+    assert isinstance(reqs, list) and isinstance(reqs[0], dict)
+    jti_1 = str(reqs[0]["elicitationId"])
+
+    expected_digest = hash_action_v2(
+        {
+            "kind": "mcp.tool_call",
+            "server": "treasury-mcp",
+            "tool": "wire_funds",
+            "arguments": {"amount": 100, "destination": "acct_1"},
+        }
+    )
+
+    # Register a second distinct jti for the exact same action, audience, and policy.
+    jti_2 = "9" * 64
+    store.register(
+        jti=jti_2,
+        created_at=now,
+        expires_at=now + 300,
+        request_digest=expected_digest,
+        aud=audience,
+        policy_id=policy.policy_id,
+    )
+    mismatched_permit = _mint_passkey_permit(
+        priv,
+        jti=jti_2,
+        request_digest=expected_digest,
+        audience=audience,
+        policy_id=policy.policy_id,
+        now=now,
+    )
+
+    # Round 2 with requestState(jti_1) + permit(jti_2) must deny without burning either nonce.
+    denied = await wire_funds(
+        amount=100,
+        destination="acct_1",
+        requestState=round1["requestState"],
+        inputResponses=[{"permit_jws": mismatched_permit}],
+    )
+    assert isinstance(denied, dict)
+    assert denied["isError"] is True
+    assert denied["reason"] == "nonce_not_found"
+    assert executions[0] == 0
+    rec_1 = store.peek(jti_1)
+    rec_2 = store.peek(jti_2)
+    assert rec_1 is not None and rec_1.consumed_at is None
+    assert rec_2 is not None and rec_2.consumed_at is None
+
+    # Legitimate retry with matching jti_1 still succeeds once.
+    matching_permit = _mint_passkey_permit(
+        priv,
+        jti=jti_1,
+        request_digest=expected_digest,
+        audience=audience,
+        policy_id=policy.policy_id,
+        now=now,
+    )
+    accepted = await wire_funds(
+        amount=100,
+        destination="acct_1",
+        requestState=round1["requestState"],
+        inputResponses=[{"permit_jws": matching_permit}],
+    )
+    assert accepted == {"ok": True, "amount": 100, "destination": "acct_1"}
+    assert executions[0] == 1

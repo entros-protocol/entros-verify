@@ -181,6 +181,15 @@ def _validate_permit_structure(
             evaluated_at=evaluated_at,
             detail="modality must be a non-empty list of printable ASCII tokens",
         )
+    if any(
+        permit.modality[i - 1] >= permit.modality[i]
+        for i in range(1, len(permit.modality))
+    ):
+        return None, _deny(
+            RefusalCode.INVALID_PERMIT,
+            evaluated_at=evaluated_at,
+            detail="modality must be strictly sorted and unique",
+        )
 
     if not _is_printable_ascii(permit.policy_id, 1, 128):
         return None, _deny(
@@ -212,6 +221,19 @@ def _validate_permit_structure(
             RefusalCode.INVALID_PERMIT,
             evaluated_at=evaluated_at,
             detail="webauthn_assertion_digest must be non-zero 64 lowercase hex when present",
+        )
+
+    if (
+        permit.cnf is not None
+        and permit.actor.key_jkt is not None
+        and not hmac.compare_digest(
+            permit.cnf.jkt.encode("utf-8"), permit.actor.key_jkt.encode("utf-8")
+        )
+    ):
+        return None, _deny(
+            RefusalCode.INVALID_PERMIT,
+            evaluated_at=evaluated_at,
+            detail="permit cnf.jkt does not match actor.key_jkt",
         )
 
     return permit, None
@@ -258,6 +280,21 @@ def evaluate_policy_v2(
     require_scitt_verified: bool = True,
 ) -> VerificationResult:
     """Pure Policy v2 evaluator with zero I/O or nonce mutation (steps 8 to 28)."""
+    if (
+        permit.cnf is not None
+        and permit.actor.key_jkt is not None
+        and not hmac.compare_digest(
+            permit.cnf.jkt.encode("utf-8"), permit.actor.key_jkt.encode("utf-8")
+        )
+    ):
+        return _deny(
+            RefusalCode.INVALID_PERMIT,
+            evaluated_at=now_seconds,
+            detail="permit cnf.jkt does not match actor.key_jkt",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+
     # Step 8: Permit lifetime bounds (30..900s and policy cap).
     lifetime = permit.exp - permit.iat
     max_lifetime = min(MAX_PERMIT_LIFETIME_SECONDS, policy.max_permit_lifetime_seconds)
@@ -318,12 +355,12 @@ def evaluate_policy_v2(
             permit=permit,
         )
 
-    # Step 13: Policy ID and uniqueness contract match.
-    if permit.policy_id != policy.policy_id or not _check_uniqueness(permit, policy):
+    # Step 13: Policy contract identifier match.
+    if permit.policy_id != policy.policy_id:
         return _deny(
             RefusalCode.POLICY_MISMATCH,
             evaluated_at=now_seconds,
-            detail="Permit policy_id or uniqueness_status does not satisfy Policy v2",
+            detail="Permit policy_id does not satisfy Policy v2",
             permit=permit,
         )
 
@@ -349,6 +386,18 @@ def evaluate_policy_v2(
             RefusalCode.MODALITY_MISSING,
             evaluated_at=now_seconds,
             detail=f"Missing required modalities: {missing}",
+            permit=permit,
+        )
+
+    # Uniqueness boundary enforcement when policy requests stronger uniqueness.
+    if not _check_uniqueness(permit, policy):
+        return _deny(
+            RefusalCode.ASSURANCE_DOWNGRADE,
+            evaluated_at=now_seconds,
+            detail=(
+                f"uniqueness_status {permit.uniqueness_status!r} does not satisfy "
+                f"{policy.uniqueness_requirement!r}"
+            ),
             permit=permit,
         )
 
@@ -583,20 +632,6 @@ def evaluate_policy_v2(
         )
 
     # Step 27: RFC 9449 DPoP sender-constrain check.
-    if (
-        permit.cnf is not None
-        and permit.actor.key_jkt is not None
-        and not hmac.compare_digest(
-            permit.cnf.jkt.encode("ascii"), permit.actor.key_jkt.encode("ascii")
-        )
-    ):
-        return _deny(
-            RefusalCode.DPOP_PROOF_INVALID,
-            evaluated_at=now_seconds,
-            detail="permit cnf.jkt does not match actor.key_jkt",
-            permit=permit,
-            voice_verdict=voice_verdict,
-        )
     if policy.require_dpop:
         if permit.cnf is None or dpop_verified is not True:
             return _deny(
@@ -717,13 +752,6 @@ def _run_dpop_check(
     if not policy.require_dpop and dpop is None:
         return None
     if permit.cnf is None:
-        return False
-    if (
-        permit.actor.key_jkt is not None
-        and not hmac.compare_digest(
-            permit.cnf.jkt.encode("ascii"), permit.actor.key_jkt.encode("ascii")
-        )
-    ):
         return False
     if dpop is None:
         return False
