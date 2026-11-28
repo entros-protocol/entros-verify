@@ -14,16 +14,19 @@ Pure-MIT Python SDK for verifying Entros `VoiceLivenessVerdict` JWS tokens, `Ent
 pip install entros-verify
 ```
 
-Optional extras:
+Optional extras for agent frameworks:
 
 ```bash
 pip install "entros-verify[mcp]"
 pip install "entros-verify[langgraph]"
-pip install "entros-verify[livekit]"
-pip install "entros-verify[pipecat]"
 ```
 
-First-party voice framework plugins live under `python/plugins/`:
+First-party voice framework plugins ship as dedicated packages under `python/plugins/`:
+
+```bash
+pip install livekit-plugins-entros
+pip install pipecat-entros
+```
 
 - `livekit-plugins-entros`: raw 16 kHz WebRTC track subscriber and `@entros_voice_gate` tool decorator.
 - `pipecat-entros`: `EntrosVoiceFirewallProcessor` parallel raw-audio tap and `FunctionCallInProgressFrame` gate.

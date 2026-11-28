@@ -46,10 +46,13 @@ function cloneRecord(record: PermitNonceV2Record): PermitNonceV2Record {
  * Multi-instance production deployments should implement `PermitNonceStoreV2`
  * using an atomic Redis `SET NX EX` or SQL `UPDATE ... WHERE consumed_at IS NULL`.
  */
+const LAZY_PRUNE_INTERVAL_SECONDS = 10;
+
 export class InMemoryPermitNonceStoreV2 implements PermitNonceStoreV2 {
   readonly #records = new Map<string, PermitNonceV2Record>();
   readonly #maxEntries: number;
   readonly #retainConsumedSeconds: number;
+  #lastPruneAt: number | null = null;
 
   constructor(options: InMemoryPermitNonceStoreV2Options = {}) {
     const maxEntries = options.maxEntries ?? 50_000;
@@ -73,20 +76,40 @@ export class InMemoryPermitNonceStoreV2 implements PermitNonceStoreV2 {
     this.#retainConsumedSeconds = retainConsumedSeconds;
   }
 
+  #isStale(record: PermitNonceV2Record, nowSeconds: number): boolean {
+    if (record.consumedAt === null) {
+      return nowSeconds >= record.expiresAt;
+    }
+    return nowSeconds >= record.expiresAt + this.#retainConsumedSeconds;
+  }
+
+  #maybePrune(nowSeconds: number): void {
+    if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 1) return;
+    if (this.#records.size === 0) {
+      this.#lastPruneAt = nowSeconds;
+      return;
+    }
+    if (
+      this.#records.size >= this.#maxEntries ||
+      (this.#lastPruneAt !== null &&
+        nowSeconds - this.#lastPruneAt >= LAZY_PRUNE_INTERVAL_SECONDS)
+    ) {
+      this.prune(nowSeconds);
+    } else if (this.#lastPruneAt === null) {
+      this.#lastPruneAt = nowSeconds;
+    }
+  }
+
   prune(nowSeconds: number): number {
     if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 1) return 0;
     let removed = 0;
     for (const [jti, record] of this.#records) {
-      const stalePending =
-        record.consumedAt === null && nowSeconds >= record.expiresAt;
-      const staleConsumed =
-        record.consumedAt !== null &&
-        nowSeconds >= record.expiresAt + this.#retainConsumedSeconds;
-      if (stalePending || staleConsumed) {
+      if (this.#isStale(record, nowSeconds)) {
         this.#records.delete(jti);
         removed += 1;
       }
     }
+    this.#lastPruneAt = nowSeconds;
     return removed;
   }
 
@@ -110,13 +133,22 @@ export class InMemoryPermitNonceStoreV2 implements PermitNonceStoreV2 {
         "requestDigest must be a non-zero 64-char lowercase hex string",
       );
     }
-    this.prune(record.issuedAt);
-    if (this.#records.has(record.jti)) {
-      throw new PermitNonceStoreV2Error(
-        "duplicate_jti",
-        "Permit jti is already registered",
-      );
+    const existing = this.#records.get(record.jti);
+    if (existing !== undefined) {
+      if (
+        Number.isSafeInteger(record.issuedAt) &&
+        record.issuedAt >= 1 &&
+        this.#isStale(existing, record.issuedAt)
+      ) {
+        this.#records.delete(record.jti);
+      } else {
+        throw new PermitNonceStoreV2Error(
+          "duplicate_jti",
+          "Permit jti is already registered",
+        );
+      }
     }
+    this.#maybePrune(record.issuedAt);
     if (this.#records.size >= this.#maxEntries) {
       throw new PermitNonceStoreV2Error(
         "capacity_reached",
@@ -154,7 +186,7 @@ export class InMemoryPermitNonceStoreV2 implements PermitNonceStoreV2 {
       ) {
         return { status: "expired" };
       }
-      this.prune(input.nowSeconds);
+      this.#maybePrune(input.nowSeconds);
       if (this.#records.size >= this.#maxEntries) {
         throw new PermitNonceStoreV2Error(
           "capacity_reached",
@@ -176,7 +208,8 @@ export class InMemoryPermitNonceStoreV2 implements PermitNonceStoreV2 {
 
     if (
       existing.requestDigest !== input.requestDigest ||
-      existing.aud !== input.aud
+      existing.aud !== input.aud ||
+      (existing.policyId !== undefined && existing.policyId !== input.policyId)
     ) {
       return { status: "not_found" };
     }

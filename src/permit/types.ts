@@ -299,6 +299,17 @@ export type WebAuthnVerifyResult =
       detail: string;
     };
 
+export interface DpopJtiStore {
+  /**
+   * Records a DPoP proof `jti` if unseen and returns `true`; returns `false` on replay.
+   */
+  consume(
+    jti: string,
+    expiresAt: number,
+    nowSeconds: number,
+  ): Promise<boolean> | boolean;
+}
+
 export interface DpopVerifyOptions {
   proof: string;
   expectedJkt: string;
@@ -307,6 +318,7 @@ export interface DpopVerifyOptions {
   permitJws: string;
   nowSeconds: number;
   maxAgeSeconds?: number;
+  jtiStore?: DpopJtiStore;
 }
 
 export type DpopVerifyResult =
@@ -405,6 +417,8 @@ export interface VerifyAgentPermitV2Input {
   permitJws: string;
   policy: PolicyV2;
   expectedAudience: string;
+  /** Optional session ID that `permit.continuity.session_id` must match before nonce consumption. */
+  expectedSessionId?: string;
   action?: CanonicalActionV2Input;
   expectedRequestDigest?: string;
   jwks: JwksSource;
@@ -418,6 +432,7 @@ export interface VerifyAgentPermitV2Input {
     htm: string;
     htu: string;
     maxAgeSeconds?: number;
+    jtiStore?: DpopJtiStore;
   };
   nonceStore?: PermitNonceStoreV2;
   requireRegisteredNonce?: boolean;

@@ -1,6 +1,6 @@
 /**
  * Pure Policy v2 evaluator and full Entros-Agent-Permit-v2 verifier enforcing
- * all 31 refusal codes in strict ADR precheck order with atomic post-precheck
+ * all 31 refusal codes in strict precheck order with atomic post-precheck
  * single-use `jti` consumption.
  */
 
@@ -311,7 +311,7 @@ function evaluateVoicePolicyBinding(
     };
   }
 
-  // Freshness monotonicity against voice verdict timestamp (ADR §4 step 4).
+  // Freshness monotonicity against voice verdict timestamp.
   if (permit.freshness_verified_at > voice.iat) {
     return {
       ok: false,
@@ -320,7 +320,7 @@ function evaluateVoicePolicyBinding(
     };
   }
 
-  // Session continuity binding (ADR §4 step 3).
+  // Session continuity binding.
   if (
     voice.session_id.length === 0 ||
     voice.session_id !== permit.continuity.session_id
@@ -333,15 +333,18 @@ function evaluateVoicePolicyBinding(
   }
 
   const rules = policy.voice_rules;
-  if (
-    rules?.max_voice_age_seconds !== undefined &&
-    now - voice.iat > rules.max_voice_age_seconds
-  ) {
-    return {
-      ok: false,
-      reason: "evidence_stale",
-      detail: "Voice verdict age exceeds policy.voice_rules.max_voice_age_seconds",
-    };
+  if (rules?.max_voice_age_seconds !== undefined) {
+    if (
+      !Number.isFinite(rules.max_voice_age_seconds) ||
+      rules.max_voice_age_seconds < 1 ||
+      now - voice.iat > rules.max_voice_age_seconds
+    ) {
+      return {
+        ok: false,
+        reason: "evidence_stale",
+        detail: "Voice verdict age exceeds policy.voice_rules.max_voice_age_seconds",
+      };
+    }
   }
 
   // Step 21: Operating profile alignment with both assurance_tier and policy.
@@ -407,7 +410,8 @@ function evaluateVoicePolicyBinding(
   }
   if (
     rules?.min_calibrated_llr !== undefined &&
-    (voice.calibrated_llr === null ||
+    (!Number.isFinite(rules.min_calibrated_llr) ||
+      voice.calibrated_llr === null ||
       voice.calibrated_llr < rules.min_calibrated_llr)
   ) {
     return {
@@ -418,7 +422,9 @@ function evaluateVoicePolicyBinding(
   }
   if (
     rules?.min_speech_ms !== undefined &&
-    voice.signal_quality.speech_ms < rules.min_speech_ms
+    (!Number.isFinite(rules.min_speech_ms) ||
+      rules.min_speech_ms < 0 ||
+      voice.signal_quality.speech_ms < rules.min_speech_ms)
   ) {
     return {
       ok: false,
@@ -428,7 +434,8 @@ function evaluateVoicePolicyBinding(
   }
   if (
     rules?.min_snr_db !== undefined &&
-    voice.signal_quality.snr_db < rules.min_snr_db
+    (!Number.isFinite(rules.min_snr_db) ||
+      voice.signal_quality.snr_db < rules.min_snr_db)
   ) {
     return {
       ok: false,
@@ -439,24 +446,31 @@ function evaluateVoicePolicyBinding(
 
   // Step 23: Partial-spoof span gate.
   const maxSpans = rules?.max_partial_spoof_spans ?? 0;
-  if (voice.partial_spoof_spans.length > maxSpans) {
+  if (
+    !Number.isFinite(maxSpans) ||
+    maxSpans < 0 ||
+    voice.partial_spoof_spans.length > maxSpans
+  ) {
     return {
       ok: false,
       reason: "partial_spoof_detected",
       detail: "Voice partial_spoof_spans count exceeds policy maximum",
     };
   }
-  if (
-    rules?.max_partial_spoof_probability !== undefined &&
-    voice.partial_spoof_spans.some(
-      (span) => span.spoof_probability > rules.max_partial_spoof_probability!,
-    )
-  ) {
-    return {
-      ok: false,
-      reason: "partial_spoof_detected",
-      detail: "Voice partial_spoof_spans probability exceeds policy ceiling",
-    };
+  if (rules?.max_partial_spoof_probability !== undefined) {
+    const probCap = rules.max_partial_spoof_probability;
+    if (
+      !Number.isFinite(probCap) ||
+      probCap < 0 ||
+      probCap > 1 ||
+      voice.partial_spoof_spans.some((span) => span.spoof_probability > probCap)
+    ) {
+      return {
+        ok: false,
+        reason: "partial_spoof_detected",
+        detail: "Voice partial_spoof_spans probability exceeds policy ceiling",
+      };
+    }
   }
 
   // Step 24: Rolling consistency drift monitor gate.
@@ -479,6 +493,7 @@ export interface EvaluatePolicyV2Input {
   policy: PolicyV2;
   expectedAudience: string;
   expectedRequestDigest: string;
+  expectedSessionId?: string;
   nowSeconds: number;
   voiceVerdict?: VoiceLivenessVerdictClaims | null;
 }
@@ -488,11 +503,11 @@ export type EvaluatePolicyV2Result =
   | { decision: "deny"; reason: PermitV2DenyCode; detail: string };
 
 /**
- * Pure, side-effect-free Policy v2 evaluator over already-verified permit and
- * optional voice claims. Evaluates Steps 8 through 24 in strict ADR order.
+ * Evaluates non-mutating Steps 8 through 18 (pre-voice policy checks) in
+ * normative order without evaluating voice or WebAuthn bindings.
  */
-export function evaluatePolicyV2(
-  input: EvaluatePolicyV2Input,
+function evaluatePreVoicePolicyV2(
+  input: Omit<EvaluatePolicyV2Input, "voiceVerdict">,
 ): EvaluatePolicyV2Result {
   const { permit, policy, expectedAudience, expectedRequestDigest, nowSeconds } =
     input;
@@ -503,6 +518,26 @@ export function evaluatePolicyV2(
 
   if (!isPlainRecord(policy) || policy.version !== 2) {
     return deny("policy_mismatch", "Policy version must equal 2");
+  }
+  if (
+    typeof policy.max_permit_lifetime_seconds !== "number" ||
+    !Number.isFinite(policy.max_permit_lifetime_seconds) ||
+    policy.max_permit_lifetime_seconds < 1
+  ) {
+    return deny(
+      "policy_mismatch",
+      "Policy max_permit_lifetime_seconds must be a finite positive number",
+    );
+  }
+  if (
+    typeof policy.max_evidence_age_seconds !== "number" ||
+    !Number.isFinite(policy.max_evidence_age_seconds) ||
+    policy.max_evidence_age_seconds < 1
+  ) {
+    return deny(
+      "policy_mismatch",
+      "Policy max_evidence_age_seconds must be a finite positive number",
+    );
   }
   if (!isValidUnixSeconds(nowSeconds)) {
     return deny("invalid_permit", "Invalid evaluation clock timestamp");
@@ -620,6 +655,15 @@ export function evaluatePolicyV2(
   }
 
   // Step 18: Session continuity requirement.
+  if (
+    input.expectedSessionId !== undefined &&
+    permit.continuity.session_id !== input.expectedSessionId
+  ) {
+    return deny(
+      "continuity_broken",
+      "Permit continuity.session_id does not match active session",
+    );
+  }
   if (policy.require_continuity) {
     if (permit.continuity.call_continuity_verified !== true) {
       return deny(
@@ -638,6 +682,27 @@ export function evaluatePolicyV2(
       );
     }
   }
+
+  return { decision: "allow", reason: "accepted" };
+}
+
+/**
+ * Pure, side-effect-free Policy v2 evaluator over already-verified permit and
+ * optional voice claims. Evaluates Steps 8 through 25 in normative order.
+ */
+export function evaluatePolicyV2(
+  input: EvaluatePolicyV2Input,
+): EvaluatePolicyV2Result {
+  const preVoice = evaluatePreVoicePolicyV2(input);
+  if (preVoice.decision === "deny") {
+    return preVoice;
+  }
+
+  const { permit, policy, nowSeconds } = input;
+  const deny = (
+    reason: PermitV2DenyCode,
+    detail: string,
+  ): EvaluatePolicyV2Result => ({ decision: "deny", reason, detail });
 
   // Steps 19..24: Voice binding checks when voice is required or supplied.
   const voiceRequired =
@@ -676,7 +741,7 @@ export function evaluatePolicyV2(
 }
 
 /**
- * Verifies an `Entros-Agent-Permit-v2` JWS end-to-end across all 31 ADR §2.4
+ * Verifies an `Entros-Agent-Permit-v2` JWS end-to-end across all 31 refusal
  * checks. Runs every non-mutating cryptographic, policy, voice, WebAuthn, DPoP,
  * and SCITT precheck before consuming `jti` atomically in `nonceStore`.
  */
@@ -777,31 +842,23 @@ export async function verifyAgentPermitV2(
     );
   }
 
-  // Steps 8..18: Pre-voice policy checks (non-mutating).
-  const baseCheck = evaluatePolicyV2({
+  // Steps 8..18: Pre-voice policy checks (non-mutating; Step 25 runs after Steps 19..24).
+  const baseCheck = evaluatePreVoicePolicyV2({
     permit,
-    policy: {
-      ...input.policy,
-      // Defer voice presence check inside baseCheck until we verify voice_verdict_jws below.
-      required_modalities: input.policy.required_modalities,
-    },
+    policy: input.policy,
     expectedAudience: input.expectedAudience,
     expectedRequestDigest,
+    expectedSessionId: input.expectedSessionId,
     nowSeconds: precheckNow,
-    voiceVerdict: undefined,
   });
+
+  if (baseCheck.decision === "deny") {
+    return deny(baseCheck.reason, baseCheck.detail, permit);
+  }
 
   const voiceRequired =
     isVoiceTier(permit.assurance_tier) ||
     input.policy.required_modalities.includes("voice_liveness");
-
-  // If a pre-voice check (Steps 8..18) failed, return immediately before touching voice/WebAuthn/DPoP/SCITT.
-  if (
-    baseCheck.decision === "deny" &&
-    baseCheck.reason !== "voice_verdict_invalid"
-  ) {
-    return deny(baseCheck.reason, baseCheck.detail, permit);
-  }
 
   // Steps 19..24: Verify embedded VoiceLivenessVerdict JWS when required or present.
   let verifiedVoice: VoiceLivenessVerdictClaims | null = null;
@@ -901,6 +958,7 @@ export async function verifyAgentPermitV2(
         permit,
       );
     }
+    // Defer jtiStore consumption until after Step 28 and post-precheck clock validation.
     const dpopRes = await verifyDpopProofV2({
       proof: input.dpop.proof,
       expectedJkt,
@@ -934,6 +992,7 @@ export async function verifyAgentPermitV2(
       expectedRequestDigest: permit.request_digest,
       expectedPolicyId: permit.policy_id,
       expectedAud: permit.aud,
+      expectedDecision: "allow",
     });
     if (!scittRes.ok) {
       if (scittRes.reason === "state_unavailable") {
@@ -956,6 +1015,74 @@ export async function verifyAgentPermitV2(
       permit,
       postPrecheckNow,
     );
+  }
+  if (
+    postPrecheckNow - permit.freshness_verified_at >
+    input.policy.max_evidence_age_seconds
+  ) {
+    return deny(
+      "evidence_stale",
+      "Evidence became stale before nonce consumption",
+      permit,
+      postPrecheckNow,
+    );
+  }
+  if (verifiedVoice !== null) {
+    if (postPrecheckNow >= verifiedVoice.exp) {
+      return deny(
+        "voice_verdict_invalid",
+        "Voice verdict expired before nonce consumption",
+        permit,
+        postPrecheckNow,
+      );
+    }
+    if (
+      input.policy.voice_rules?.max_voice_age_seconds !== undefined &&
+      postPrecheckNow - verifiedVoice.iat >
+        input.policy.voice_rules.max_voice_age_seconds
+    ) {
+      return deny(
+        "evidence_stale",
+        "Voice verdict became stale before nonce consumption",
+        permit,
+        postPrecheckNow,
+      );
+    }
+  }
+  if (verifiedDpop !== null) {
+    const dpopMaxAge = input.dpop?.maxAgeSeconds ?? 60;
+    if (postPrecheckNow - verifiedDpop.iat > dpopMaxAge) {
+      return deny(
+        "dpop_proof_invalid",
+        "DPoP proof became stale before nonce consumption",
+        permit,
+        postPrecheckNow,
+      );
+    }
+    if (input.dpop?.jtiStore !== undefined) {
+      let dpopFresh: boolean;
+      try {
+        dpopFresh = await input.dpop.jtiStore.consume(
+          verifiedDpop.jti,
+          verifiedDpop.iat + dpopMaxAge + PERMIT_V2_LIMITS.clockSkewSeconds,
+          postPrecheckNow,
+        );
+      } catch (error) {
+        return unavailable(
+          error instanceof Error ? error.message : "DPoP replay store backend error",
+          permit,
+          postPrecheckNow,
+        );
+      }
+      if (!dpopFresh) {
+        return deny(
+          "dpop_proof_invalid",
+          "DPoP proof jti has already been used",
+          permit,
+          postPrecheckNow,
+        );
+      }
+    }
   }
 
   // Steps 29..30: Atomic post-precheck single-use jti consumption.

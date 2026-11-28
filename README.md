@@ -10,7 +10,7 @@ Source: [github.com/entros-protocol/entros-verify](https://github.com/entros-pro
 
 `@entros/verify` binds real-time zero-retention voice liveness and hardware Passkey (`WebAuthn UV`) step-up approvals to single-use, `RFC 8785` canonical action permits (`Entros-Agent-Permit-v2`), with `IETF SCITT` (`RFC 9943`) transparency receipts and native MCP / Voice-AI adapters.
 
-- **Headless 3-dependency pure-MIT core:** `@noble/curves`, `@noble/hashes`, and `jose`. Zero GPL, AGPL, LGPL, or MPL runtime dependencies (`npm run check-licenses -- --clean-room`).
+- **Headless 2-dependency pure-MIT core:** `@noble/curves` and `@noble/hashes`. Zero GPL, AGPL, LGPL, or MPL runtime dependencies (`npm run check-licenses -- --clean-room`).
 - **React is optional:** `react` and `react-dom` are optional peers isolated strictly under `@entros/verify/react`. Node.js, Bun, Deno, Cloudflare Workers, and Vercel Edge runtimes import `.`, `./voice`, `./permit`, `./mcp`, `./browser-signals`, `./solana`, `./policy`, and `./agent-permit` without React.
 - **No wallets or tokens required for v2:** Enterprise Voice-AI and MCP deployments use standard HTTPS APIs, Ed25519 JWKS, OIDC/OAuth 2.1, and WebAuthn Passkeys. Preserved v1 Solana devnet readers and v1 wallet permits remain available under `@entros/verify/solana`, `@entros/verify/policy`, and `@entros/verify/agent-permit`.
 

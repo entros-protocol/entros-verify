@@ -1,0 +1,262 @@
+{
+  "schema": "entros.wire_contracts.v1",
+  "description": "Shared canonical wire-contract parity vectors between entros-validation (b2b-api), @entros/verify (TypeScript), and entros-verify (Python).",
+  "voice_analyze": {
+    "method": "POST",
+    "path": "/v1/voice/analyze",
+    "audio_hex": "00017f80fbfffe1000017f80fbfffe1000017f80fbfffe1000017f80fbfffe10",
+    "audio_b64_standard": "AAF/gPv//hAAAX+A+//+EAABf4D7//4QAAF/gPv//hA=",
+    "codec_mappings": [
+      {
+        "sdk_codec": "pcm16_16k",
+        "wire_encoding": "pcm16",
+        "sample_rate_hz": 16000
+      },
+      {
+        "sdk_codec": "pcm16_8k",
+        "wire_encoding": "pcm16",
+        "sample_rate_hz": 8000
+      },
+      {
+        "sdk_codec": "opus_16k",
+        "wire_encoding": "opus",
+        "sample_rate_hz": 16000
+      },
+      {
+        "sdk_codec": "opus_48k",
+        "wire_encoding": "opus",
+        "sample_rate_hz": 48000
+      },
+      {
+        "sdk_codec": "mulaw_8k",
+        "wire_encoding": "mulaw",
+        "sample_rate_hz": 8000
+      },
+      {
+        "sdk_codec": "alaw_8k",
+        "wire_encoding": "alaw",
+        "sample_rate_hz": 8000
+      },
+      {
+        "sdk_codec": "wav",
+        "wire_encoding": "wav",
+        "sample_rate_hz": null
+      }
+    ],
+    "request_example": {
+      "session_id": "sess_wire_01",
+      "audio_b64": "AAF/gPv//hAAAX+A+//+EAABf4D7//4QAAF/gPv//hA=",
+      "encoding": "pcm16",
+      "sample_rate_hz": 16000,
+      "operating_profile": "wideband_clean"
+    },
+    "response_200_required_fields": [
+      "request_id",
+      "verdict",
+      "verdict_jws",
+      "inference_ms"
+    ]
+  },
+  "voice_stream": {
+    "path": "/v1/voice/stream",
+    "default_query_adapter": "webrtc",
+    "auth_header": "Authorization",
+    "auth_scheme": "Bearer",
+    "forbidden_subprotocol_prefix": "entros.bearer.",
+    "start_frame_example": {
+      "type": "start",
+      "session_id": "sess_stream_01",
+      "codec": "pcm16",
+      "sample_rate_hz": 16000,
+      "operating_profile": "telephony_8k"
+    },
+    "control_frames": {
+      "flush": { "type": "flush" },
+      "pause": { "type": "pause" },
+      "resume": { "type": "resume" },
+      "stop": { "type": "stop" }
+    },
+    "inbound_error_variants": [
+      {
+        "type": "error",
+        "code": "frame_too_large",
+        "message": "Audio frame exceeds maximum size"
+      },
+      {
+        "type": "error",
+        "error_code": "session_rate_limited",
+        "message": "Stream rate limit exceeded"
+      }
+    ]
+  },
+  "permits_issue": {
+    "method": "POST",
+    "path": "/v1/permits/issue",
+    "default_ttl_seconds": 300,
+    "canonical_action": {
+      "kind": "mcp.tool_call",
+      "server": "payments",
+      "tool": "wire_transfer",
+      "arguments": {
+        "amount_cents": 250000,
+        "currency": "USD",
+        "to_account": "acct_9942"
+      }
+    },
+    "expected_request_digest": "52f0b6339f854442e39bff0b17b5e545907262bdba02eb49e84d8d21fbe053f4",
+    "response_200_issued": {
+      "status": "issued",
+      "jti": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "permit_jws": "header.payload.sig",
+      "scitt_receipt": "d2hA",
+      "request_digest": "52f0b6339f854442e39bff0b17b5e545907262bdba02eb49e84d8d21fbe053f4",
+      "assurance_tier": "voice_liveness_webrtc",
+      "expires_at": 1780000300
+    },
+    "response_202_step_up_required": {
+      "status": "step_up_required",
+      "reason": "voice_abstention_requires_passkey",
+      "required_assurance_tier": "voice_plus_passkey",
+      "request_digest": "52f0b6339f854442e39bff0b17b5e545907262bdba02eb49e84d8d21fbe053f4",
+      "recommended_step_up_endpoint": "/v1/permits/step-up"
+    }
+  },
+  "permits_step_up": {
+    "method": "POST",
+    "path": "/v1/permits/step-up",
+    "create_request_required_fields": [
+      "operation",
+      "protocol",
+      "sub",
+      "actor",
+      "aud",
+      "request_digest",
+      "policy_id"
+    ],
+    "create_status": 201,
+    "create_response_201": {
+      "jti": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "protocol": "mcp_mrtr",
+      "approval_url": "https://approve.entros.io/step-up/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "challenge_b64url": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+      "expires_at": 1780000300,
+      "mcp_input_required": {
+        "resultType": "input_required",
+        "inputRequests": [
+          {
+            "mode": "url",
+            "elicitationId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "url": "https://approve.entros.io/step-up/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "message": "Approve wire transfer",
+            "cacheable": false
+          }
+        ],
+        "requestState": "eyJhdWQiOiJodHRwczovL21jcC5leGFtcGxlLmNvbS90b29scyIsImV4cCI6MTc4MDAwMDMwMCwiaWF0IjoxNzgwMDAwMDAwLCJqdGkiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwicG9saWN5X2lkIjoicG9sX3dpcmVfdjIiLCJyZXF1ZXN0X2RpZ2VzdCI6IjUyZjBiNjMzOWY4NTQ0NDJlMzliZmYwYjE3YjVlNTQ1OTA3MjYyYmRiYTAyZWI0OWU4NGQ4ZDIxZmJlMDUzZjQiLCJ2IjoyfQ.xav94OQXA_8rTTU-MTHuNrVeCLlgY483evH07St-SWI"
+      }
+    },
+    "poll_request": {
+      "operation": "poll",
+      "jti": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "poll_response_pending": {
+      "status": "pending",
+      "jti": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expires_at": 1780000300
+    },
+    "poll_response_completed": {
+      "status": "completed",
+      "jti": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "request_digest": "52f0b6339f854442e39bff0b17b5e545907262bdba02eb49e84d8d21fbe053f4",
+      "permit_jws": "header.payload.sig",
+      "scitt_receipt": "d2hA",
+      "assurance_tier": "voice_plus_passkey",
+      "freshness_verified_at": 1780000010,
+      "expires_at": 1780000300,
+      "webauthn_assertion_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "complete_request_required_fields": [
+      "operation",
+      "jti",
+      "webauthn_assertion",
+      "public_key",
+      "expected_rp_id",
+      "expected_origin"
+    ],
+    "complete_response_200": {
+      "jti": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "request_digest": "52f0b6339f854442e39bff0b17b5e545907262bdba02eb49e84d8d21fbe053f4",
+      "permit_jws": "header.payload.sig",
+      "scitt_receipt": "d2hA",
+      "assurance_tier": "voice_plus_passkey",
+      "freshness_verified_at": 1780000010,
+      "expires_at": 1780000300,
+      "webauthn_assertion_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  },
+  "permits_verify": {
+    "method": "POST",
+    "path": "/v1/permits/verify",
+    "response_200_allow": {
+      "ok": true,
+      "verified": true,
+      "decision": "allow",
+      "reason": null,
+      "jti": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "assurance_tier": "voice_liveness_webrtc",
+      "freshness_verified_at": 1780000010,
+      "consumed_at": 1780000010,
+      "refusal_code": null,
+      "scitt_receipt": "d2hA"
+    },
+    "response_403_deny": {
+      "ok": false,
+      "verified": false,
+      "decision": "deny",
+      "error": "assurance_downgrade",
+      "code": "assurance_downgrade",
+      "refusal_code": "assurance_downgrade",
+      "reason": "assurance_downgrade",
+      "message": "Assurance tier not allowed by policy"
+    },
+    "response_409_replay": {
+      "ok": false,
+      "verified": false,
+      "decision": "deny",
+      "error": "nonce_replayed",
+      "code": "nonce_replayed",
+      "refusal_code": "nonce_replayed",
+      "reason": "nonce_replayed",
+      "message": "Permit jti has already been consumed"
+    }
+  },
+  "permits_receipt": {
+    "method": "GET",
+    "path_template": "/v1/permits/receipt/{jti}",
+    "valid_jti": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "invalid_jtis": [
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "../admin/keys",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "not-a-hex-jti",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+  },
+  "mrtr_request_state": {
+    "domain_prefix": "Entros-MCP-MRTR-State-v2\n",
+    "min_secret_bytes": 32,
+    "secret_utf8": "0123456789abcdef0123456789abcdef",
+    "short_secret_utf8": "too-short-secret-1234",
+    "claims": {
+      "v": 2,
+      "jti": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "request_digest": "52f0b6339f854442e39bff0b17b5e545907262bdba02eb49e84d8d21fbe053f4",
+      "aud": "https://mcp.example.com/tools",
+      "policy_id": "pol_wire_v2",
+      "iat": 1780000000,
+      "exp": 1780000300
+    },
+    "now_valid": 1780000050,
+    "now_expired": 1780000300,
+    "expected_token": "eyJhdWQiOiJodHRwczovL21jcC5leGFtcGxlLmNvbS90b29scyIsImV4cCI6MTc4MDAwMDMwMCwiaWF0IjoxNzgwMDAwMDAwLCJqdGkiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwicG9saWN5X2lkIjoicG9sX3dpcmVfdjIiLCJyZXF1ZXN0X2RpZ2VzdCI6IjUyZjBiNjMzOWY4NTQ0NDJlMzliZmYwYjE3YjVlNTQ1OTA3MjYyYmRiYTAyZWI0OWU4NGQ4ZDIxZmJlMDUzZjQiLCJ2IjoyfQ.xav94OQXA_8rTTU-MTHuNrVeCLlgY483evH07St-SWI"
+  }
+}

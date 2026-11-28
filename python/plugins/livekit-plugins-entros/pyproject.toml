@@ -6,20 +6,44 @@ build-backend = "hatchling.build"
 name = "livekit-plugins-entros"
 version = "1.0.0"
 description = "First-party LiveKit Agents voice liveness and AgentPermit v2 tool-gating plugin for Entros."
+readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
   { name = "Entros Protocol" },
 ]
+keywords = [
+  "entros",
+  "livekit",
+  "voice-ai",
+  "voice-liveness",
+  "agent-permit",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security :: Cryptography",
+  "Typing :: Typed",
+]
 dependencies = [
-  "entros-verify==1.0.0",
+  "entros-verify>=1.0.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
 livekit = [
   "livekit-agents>=1.0",
 ]
+
+[project.urls]
+Homepage = "https://entros.io"
+Repository = "https://github.com/entros-protocol/entros-verify"
+Documentation = "https://entros.io/docs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/livekit_plugins_entros"]

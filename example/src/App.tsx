@@ -94,7 +94,11 @@ export function App() {
     (r: EntrosVerifyResult) => {
       setResult(r);
       append("verified", r);
-      void pollAttestation(r.attestationPda);
+      if (r.attestationPda) {
+        void pollAttestation(r.attestationPda);
+      } else {
+        setAttestation({ state: "idle" });
+      }
     },
     [append, pollAttestation],
   );

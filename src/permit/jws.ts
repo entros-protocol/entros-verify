@@ -80,6 +80,7 @@ export function verifyStrictEd25519Signature(
 
     const rBytes = signature.subarray(0, 32);
     const rPoint = ed25519.Point.fromBytes(rBytes, false);
+    if (rPoint.isSmallOrder()) return false;
     if (!constantTimeEqual(rPoint.toBytes(), rBytes)) return false;
   } catch {
     return false;

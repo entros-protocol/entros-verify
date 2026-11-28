@@ -10,12 +10,21 @@ import {
   InMemoryPermitNonceStoreV2,
 } from "../src/mcp/nonce-store-v2";
 import {
+  signMrtrRequestState,
+  verifyMrtrRequestState,
+  type MrtrRequestStateClaims,
+} from "../src/mcp/mrtr";
+import {
   canonicalizeJcs,
   CanonicalJsonError,
   hashActionV2,
   parseStrictJson,
 } from "../src/permit/canonical";
 import {
+  createPermitApiClient,
+} from "../src/permit/client";
+import {
+  base64Encode,
   base64UrlDecodeStrict,
   concatBytes,
 } from "../src/permit/encoding";
@@ -33,6 +42,11 @@ import {
   deriveWebAuthnChallengeV2,
   verifyWebAuthnAssertionV2,
 } from "../src/permit/webauthn";
+import {
+  createVoiceLivenessClient,
+  type VoiceAudioCodec,
+  type WebSocketLike,
+} from "../src/voice/client";
 import { verifyVoiceLivenessVerdict } from "../src/voice/verdict";
 
 const VECTORS_DIR = resolve(
@@ -256,7 +270,7 @@ describe("Shared parity vectors: WebAuthn P-256 (webauthn-p256-vectors.json)", (
     }>;
   }>("webauthn-p256-vectors.json");
 
-  it("derives exact ADR challenge hex and base64url", () => {
+  it("derives exact v2 challenge hex and base64url", () => {
     const derived = deriveWebAuthnChallengeV2(
       vectors.challenge_derivation.jti,
       vectors.challenge_derivation.request_digest,
@@ -561,5 +575,378 @@ describe("Shared parity vectors: Policy v2 & Concurrency (policy-v2-vectors.json
     );
     expect(allows).toHaveLength(scenario.expected_allows);
     expect(replays).toHaveLength(scenario.expected_nonce_replayed);
+  });
+});
+
+describe("Shared parity vectors: Wire contracts & MRTR requestState (wire-contracts.json)", () => {
+  const wire = loadVectorFile<{
+    voice_analyze: {
+      path: string;
+      audio_hex: string;
+      audio_b64_standard: string;
+      codec_mappings: Array<{
+        sdk_codec: VoiceAudioCodec;
+        wire_encoding: string;
+        sample_rate_hz: number | null;
+      }>;
+    };
+    voice_stream: {
+      path: string;
+      default_query_adapter: string;
+      auth_header: string;
+      auth_scheme: string;
+      forbidden_subprotocol_prefix: string;
+      start_frame_example: {
+        type: "start";
+        session_id: string;
+        codec: string;
+        sample_rate_hz: number;
+        operating_profile: string;
+      };
+      control_frames: Record<string, { type: string }>;
+      inbound_error_variants: Array<{
+        type: "error";
+        code?: string;
+        error_code?: string;
+        message: string;
+      }>;
+    };
+    permits_issue: {
+      path: string;
+      default_ttl_seconds: number;
+      canonical_action: CanonicalActionV2Input;
+      expected_request_digest: string;
+      response_200_issued: Record<string, unknown>;
+      response_202_step_up_required: Record<string, unknown>;
+    };
+    permits_step_up: {
+      path: string;
+      create_status: number;
+      create_response_201: Record<string, unknown>;
+      poll_request: { operation: "poll"; jti: string };
+      poll_response_pending: Record<string, unknown>;
+      poll_response_completed: Record<string, unknown>;
+      complete_response_200: Record<string, unknown>;
+    };
+    permits_verify: {
+      path: string;
+      response_200_allow: Record<string, unknown>;
+      response_403_deny: Record<string, unknown>;
+      response_409_replay: Record<string, unknown>;
+    };
+    permits_receipt: {
+      valid_jti: string;
+      invalid_jtis: string[];
+    };
+    mrtr_request_state: {
+      secret_utf8: string;
+      short_secret_utf8: string;
+      claims: MrtrRequestStateClaims;
+      now_valid: number;
+      now_expired: number;
+      expected_token: string;
+    };
+  }>("wire-contracts.json");
+
+  const jwsVectors = loadVectorFile<{
+    now_seconds: number;
+    jwks: JwksDocument;
+    valid_voice_verdict: { jws: string };
+  }>("jws-eddsa-vectors.json");
+
+  it("matches exact MRTR requestState HMAC-SHA256 token byte-for-byte with Python/Rust", () => {
+    const mrtr = wire.mrtr_request_state;
+    const token = signMrtrRequestState(mrtr.claims, mrtr.secret_utf8);
+    expect(token).toBe(mrtr.expected_token);
+
+    const verified = verifyMrtrRequestState(
+      mrtr.expected_token,
+      mrtr.secret_utf8,
+      mrtr.now_valid,
+    );
+    expect(verified.ok).toBe(true);
+    if (verified.ok) {
+      expect(verified.claims).toEqual(mrtr.claims);
+    }
+
+    const expired = verifyMrtrRequestState(
+      mrtr.expected_token,
+      mrtr.secret_utf8,
+      mrtr.now_expired,
+    );
+    expect(expired.ok).toBe(false);
+
+    expect(() =>
+      signMrtrRequestState(mrtr.claims, mrtr.short_secret_utf8),
+    ).toThrow(/at least 32 bytes/);
+  });
+
+  it("encodes standard Base64 audio_b64 and maps all voice analyze codecs to b2b-api wire contract", async () => {
+    const audioBytes = new Uint8Array(
+      wire.voice_analyze.audio_hex.match(/.{2}/g)!.map((h) => Number.parseInt(h, 16)),
+    );
+    expect(base64Encode(audioBytes)).toBe(wire.voice_analyze.audio_b64_standard);
+
+    for (const mapping of wire.voice_analyze.codec_mappings) {
+      let seenBody: Record<string, unknown> | null = null;
+      let seenUrl = "";
+      const client = createVoiceLivenessClient({
+        baseUrl: "https://api.entros.io",
+        apiKey: "entros_test_key",
+        fetch: (async (url: RequestInfo | URL, init?: RequestInit) => {
+          seenUrl = String(url);
+          seenBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return new Response(
+            JSON.stringify({
+              request_id: "req_wire_codec",
+              verdict: "likely_human",
+              verdict_jws: jwsVectors.valid_voice_verdict.jws,
+              inference_ms: 14.2,
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }) as typeof fetch,
+      });
+
+      const res = await client.analyze({
+        sessionId: "lk_room_bank_8831_caller_01",
+        audio: audioBytes,
+        codec: mapping.sdk_codec,
+        operatingProfile: "wideband_clean",
+        verifyWithJwks: jwsVectors.jwks,
+        nowSeconds: jwsVectors.now_seconds,
+      });
+      expect(seenUrl).toBe(`https://api.entros.io${wire.voice_analyze.path}`);
+      expect(seenBody).not.toBeNull();
+      expect(seenBody!["audio_b64"]).toBe(wire.voice_analyze.audio_b64_standard);
+      expect(seenBody!["encoding"]).toBe(mapping.wire_encoding);
+      if (mapping.sample_rate_hz === null) {
+        expect("sample_rate_hz" in seenBody!).toBe(false);
+      } else {
+        expect(seenBody!["sample_rate_hz"]).toBe(mapping.sample_rate_hz);
+      }
+      expect(res.inferenceMs).toBe(14.2);
+      expect(res.verdict?.verdict).toBe("likely_human");
+    }
+  });
+
+  it("aligns WebSocket stream Authorization header, start/control frames, and inbound error variants", async () => {
+    const sentFrames: Array<string | Uint8Array | ArrayBuffer> = [];
+    const seenHeaders: Record<string, string>[] = [];
+    const seenUrls: string[] = [];
+    const target = new EventTarget();
+
+    class WireFakeWs implements WebSocketLike {
+      readyState = 1;
+      send(data: string | Uint8Array | ArrayBuffer) {
+        sentFrames.push(data);
+      }
+      close() {}
+      addEventListener(type: string, listener: (ev: unknown) => void) {
+        target.addEventListener(type, listener as EventListener);
+      }
+    }
+
+    const errors: Array<{ code: string; serverCode?: string; message: string }> = [];
+    const client = createVoiceLivenessClient({
+      baseUrl: "https://api.entros.io",
+      apiKey: "secret-api-key",
+      webSocketFactory: (url, opts) => {
+        seenUrls.push(url);
+        seenHeaders.push(opts.headers);
+        expect("protocols" in opts).toBe(false);
+        return new WireFakeWs();
+      },
+    });
+
+    const stream = client.connectStream({
+      sessionId: wire.voice_stream.start_frame_example.session_id,
+      codec: "pcm16_16k",
+      operatingProfile: "telephony_8k",
+      onVerdict: () => {},
+      onError: (err) =>
+        errors.push({
+          code: err.code,
+          serverCode: err.serverCode,
+          message: err.message,
+        }),
+    });
+
+    expect(seenUrls[0]).toBe(
+      `wss://api.entros.io${wire.voice_stream.path}?adapter=${wire.voice_stream.default_query_adapter}`,
+    );
+    expect(seenHeaders[0]?.[wire.voice_stream.auth_header]).toBe(
+      `${wire.voice_stream.auth_scheme} secret-api-key`,
+    );
+    expect(JSON.parse(String(sentFrames[0]))).toEqual(
+      wire.voice_stream.start_frame_example,
+    );
+
+    stream.flush();
+    stream.pause();
+    stream.resume();
+    stream.stop();
+    expect(JSON.parse(String(sentFrames[1]))).toEqual(
+      wire.voice_stream.control_frames.flush,
+    );
+    expect(JSON.parse(String(sentFrames[2]))).toEqual(
+      wire.voice_stream.control_frames.pause,
+    );
+    expect(JSON.parse(String(sentFrames[3]))).toEqual(
+      wire.voice_stream.control_frames.resume,
+    );
+    expect(JSON.parse(String(sentFrames[4]))).toEqual(
+      wire.voice_stream.control_frames.stop,
+    );
+
+    for (const errFrame of wire.voice_stream.inbound_error_variants) {
+      target.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(errFrame) }),
+      );
+    }
+    expect(errors).toHaveLength(2);
+    expect(errors[0]?.code).toBe("stream_error");
+    expect(errors[0]?.serverCode).toBe("frame_too_large");
+    expect(errors[1]?.serverCode).toBe("session_rate_limited");
+  });
+
+  it("aligns PermitApiClient issue (200/202), step-up (create/poll/complete), verify (200/403/409), and receipt jti validation", async () => {
+    expect(hashActionV2(wire.permits_issue.canonical_action).requestDigest).toBe(
+      wire.permits_issue.expected_request_digest,
+    );
+
+    const policy: PolicyV2 = {
+      policy_id: "pol_wire_v2",
+      version: 2,
+      allowed_assurance_tiers: ["voice_liveness_webrtc"],
+      max_evidence_age_seconds: 120,
+      max_permit_lifetime_seconds: 300,
+      required_modalities: ["voice_liveness"],
+      require_continuity: false,
+      require_dpop: false,
+      require_scitt_receipt: false,
+    };
+
+    const requests: Array<{ url: string; body: Record<string, unknown> | null }> = [];
+    const responses: Array<{ status: number; body: Record<string, unknown> }> = [
+      { status: 200, body: wire.permits_issue.response_200_issued },
+      { status: 202, body: wire.permits_issue.response_202_step_up_required },
+      { status: wire.permits_step_up.create_status, body: wire.permits_step_up.create_response_201 },
+      { status: 200, body: wire.permits_step_up.poll_response_pending },
+      { status: 200, body: wire.permits_step_up.poll_response_completed },
+      { status: 200, body: wire.permits_step_up.complete_response_200 },
+      { status: 200, body: wire.permits_verify.response_200_allow },
+      { status: 403, body: wire.permits_verify.response_403_deny },
+      { status: 409, body: wire.permits_verify.response_409_replay },
+    ];
+    let idx = 0;
+
+    const api = createPermitApiClient({
+      baseUrl: "https://api.entros.io",
+      apiKey: "entros_api_key",
+      fetch: (async (url: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: String(url),
+          body: init?.body
+            ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+            : null,
+        });
+        const next = responses[idx++]!;
+        return new Response(JSON.stringify(next.body), {
+          status: next.status,
+          headers: { "content-type": "application/json" },
+        });
+      }) as typeof fetch,
+    });
+
+    const issued = await api.issuePermit({
+      sub: "usr_01",
+      actor: { id: "spiffe://acme/agent" },
+      aud: "https://mcp.example.com/tools",
+      action: wire.permits_issue.canonical_action,
+      policy,
+      evidence: { voice_verdict_jws: jwsVectors.valid_voice_verdict.jws },
+    });
+    expect(issued.status).toBe("issued");
+    expect(requests[0]?.body?.["ttl_seconds"]).toBe(
+      wire.permits_issue.default_ttl_seconds,
+    );
+
+    const stepUpReq = await api.issuePermit({
+      sub: "usr_01",
+      actor: { id: "spiffe://acme/agent" },
+      aud: "https://mcp.example.com/tools",
+      action: wire.permits_issue.canonical_action,
+      policy,
+      evidence: {},
+    });
+    expect(stepUpReq.status).toBe("step_up_required");
+
+    const created = await api.createStepUp({
+      protocol: "mcp_mrtr",
+      sub: "usr_01",
+      actor: { id: "spiffe://acme/agent" },
+      aud: "https://mcp.example.com/tools",
+      request_digest: wire.permits_issue.expected_request_digest,
+      policy_id: "pol_wire_v2",
+    });
+    expect(requests[2]?.body?.["operation"]).toBe("create");
+    expect(created.protocol).toBe("mcp_mrtr");
+
+    const pollPending = await api.pollStepUp(wire.permits_step_up.poll_request.jti);
+    expect(requests[3]?.body).toEqual(wire.permits_step_up.poll_request);
+    expect(pollPending.status).toBe("pending");
+
+    const pollDone = await api.pollStepUp(wire.permits_step_up.poll_request.jti);
+    expect(pollDone.status).toBe("completed");
+
+    const completed = await api.completeStepUp({
+      jti: wire.permits_step_up.poll_request.jti,
+      webauthn_assertion: {
+        credential_id: "cred_1",
+        authenticator_data: "AQID",
+        client_data_json: "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+        signature: "MEUC",
+      },
+      public_key: "04" + "11".repeat(64),
+      expected_rp_id: "approve.entros.io",
+      expected_origin: "https://approve.entros.io",
+    });
+    expect(requests[5]?.body?.["operation"]).toBe("complete");
+    expect(completed.jti).toBe(wire.permits_step_up.poll_request.jti);
+    expect(completed.assurance_tier).toBe("voice_plus_passkey");
+
+    const verifiedAllow = await api.verifyPermitOnline({
+      permit_jws: "header.payload.sig",
+      expected_aud: "https://mcp.example.com/tools",
+      action: wire.permits_issue.canonical_action,
+      policy,
+    });
+    expect(verifiedAllow.verified).toBe(true);
+    expect(verifiedAllow.reason).toBeNull();
+
+    const verified403 = await api.verifyPermitOnline({
+      permit_jws: "header.payload.sig",
+      expected_aud: "https://mcp.example.com/tools",
+      action: wire.permits_issue.canonical_action,
+      policy,
+    });
+    expect(verified403.verified).toBe(false);
+    expect(verified403.reason).toBe("assurance_downgrade");
+
+    const verified409 = await api.verifyPermitOnline({
+      permit_jws: "header.payload.sig",
+      expected_aud: "https://mcp.example.com/tools",
+      action: wire.permits_issue.canonical_action,
+      policy,
+    });
+    expect(verified409.verified).toBe(false);
+    expect(verified409.reason).toBe("nonce_replayed");
+
+    for (const badJti of wire.permits_receipt.invalid_jtis) {
+      await expect(api.fetchScittReceipt(badJti)).rejects.toThrow(
+        /64-char lowercase hex/,
+      );
+    }
   });
 });

@@ -64,7 +64,7 @@ export interface EntrosVerifyProps {
   popupWidth?: number;
   /** Popup height in CSS pixels. Defaults to 800. */
   popupHeight?: number;
-  /** See README.md#full-api for timeout behavior and the default. */
+  /** Popup timeout in milliseconds before firing `timeout`. Defaults to 540,000 (9 minutes). */
   timeoutMs?: number;
   /** Custom button content. Defaults to "Verify with Entros". */
   children?: ReactNode;

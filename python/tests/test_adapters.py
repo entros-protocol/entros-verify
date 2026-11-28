@@ -15,11 +15,13 @@ from entros_verify import (
     ScittDecisionPayload,
     ScittReceiptResult,
     StaticJwksProvider,
+    canonicalize_jcs_bytes,
+    hash_action_v2,
+)
+from entros_verify._testing import (
     b64url_decode_nopad,
     b64url_encode_nopad,
-    canonicalize_jcs_bytes,
     create_scitt_receipt,
-    hash_action_v2,
     sign_eddsa_compact_jws,
 )
 from entros_verify.adapters import (
@@ -29,7 +31,11 @@ from entros_verify.adapters import (
     format_insufficient_scope_header,
     require_human_consent,
 )
-from entros_verify.adapters.fastmcp import RequestStateClaims, sign_request_state
+from entros_verify.adapters.fastmcp import (
+    RequestStateClaims,
+    sign_request_state,
+    verify_request_state,
+)
 
 
 @dataclass
@@ -65,6 +71,7 @@ def _mint_passkey_permit(
     policy_id: str,
     now: int,
     with_scitt: bool = False,
+    ttl_seconds: int = 300,
 ) -> str:
     scitt_b64: str | None = None
     if with_scitt:
@@ -98,7 +105,7 @@ def _mint_passkey_permit(
             "aud": audience,
             "jti": jti,
             "iat": now - 5,
-            "exp": now + 295,
+            "exp": now - 5 + ttl_seconds,
             "request_digest": request_digest,
             "assurance_tier": "passkey_webauthn_uv",
             "modality": ["webauthn_uv"],
@@ -315,6 +322,41 @@ async def test_fastmcp_mrtr_and_sep1036_consent_flows() -> None:
     assert isinstance(bad_state, dict) and bad_state["reason"] == "invalid_signature"
     assert executions[0] == 0
 
+    # Missing requestState on MRTR Round 2 retry must fail closed (cannot bypass MRTR binding).
+    missing_state = await transfer_funds(
+        amount=250,
+        recipient="acct_9942",
+        inputResponses=[{"permit_jws": permit_jws}],
+    )
+    assert isinstance(missing_state, dict)
+    assert missing_state["isError"] is True
+    assert missing_state["reason"] == "invalid_permit"
+    assert executions[0] == 0
+
+    # Malformed webauthn_assertion / dpop inputs must return denial dicts, not raise ValidationError.
+    bad_webauthn = await transfer_funds(
+        amount=250,
+        recipient="acct_9942",
+        requestState=round1["requestState"],
+        inputResponses=[{"permit_jws": permit_jws}],
+        webauthn_assertion={"bad": True},
+    )
+    assert isinstance(bad_webauthn, dict)
+    assert bad_webauthn["isError"] is True
+    assert bad_webauthn["reason"] == "webauthn_assertion_invalid"
+
+    bad_dpop = await transfer_funds(
+        amount=250,
+        recipient="acct_9942",
+        requestState=round1["requestState"],
+        inputResponses=[{"permit_jws": permit_jws}],
+        dpop={"bad": True},
+    )
+    assert isinstance(bad_dpop, dict)
+    assert bad_dpop["isError"] is True
+    assert bad_dpop["reason"] == "dpop_proof_invalid"
+    assert executions[0] == 0
+
     # Valid Round 2 succeeds once and logs SCITT receipt.
     round2 = await transfer_funds(
         amount=250,
@@ -337,12 +379,29 @@ async def test_fastmcp_mrtr_and_sep1036_consent_flows() -> None:
     assert isinstance(replay, dict) and replay["reason"] == "nonce_replayed"
     assert executions[0] == 1
 
-    # SEP-1036 URL-Mode Elicitation emits mode="url" (never form mode).
-    sep_challenge = await transfer_funds(
-        amount=250,
-        recipient="acct_9942",
-        mcp_consent_mode="sep_1036",
+    # Untrusted caller kwargs MUST NOT override server-configured protocol_mode="mcp_mrtr".
+    # Passing unexpected kwarg must fail (never downgrade to sep_1036).
+    with pytest.raises(TypeError):
+        await transfer_funds(
+            amount=250,
+            recipient="acct_9942",
+            mcp_consent_mode="sep_1036",
+        )
+
+    # Server-configured SEP-1036 URL-Mode Elicitation emits mode="url" (never form mode).
+    @require_human_consent(
+        policy=policy,
+        audience=audience,
+        nonce_store=store,
+        jwks=jwks,
+        server="treasury-mcp",
+        protocol_mode="sep_1036",
+        clock=lambda: now,
     )
+    async def sep_transfer_funds(amount: int, recipient: str) -> dict[str, object]:
+        return {"status": "transferred", "amount": amount, "recipient": recipient}
+
+    sep_challenge = await sep_transfer_funds(amount=250, recipient="acct_9942")
     assert isinstance(sep_challenge, dict)
     assert sep_challenge["method"] == "elicitation/create"
     params = sep_challenge["params"]
@@ -379,6 +438,7 @@ async def test_fastmcp_mrtr_enforces_request_state_jti_binding_and_jcs() -> None
     raw_payload = b64url_decode_nopad(token.split(".", 1)[0])
     assert raw_payload == canonicalize_jcs_bytes(
         {
+            "v": 2,
             "jti": claims.jti,
             "request_digest": claims.request_digest,
             "aud": claims.aud,
@@ -387,6 +447,10 @@ async def test_fastmcp_mrtr_enforces_request_state_jti_binding_and_jcs() -> None
             "exp": claims.exp,
         }
     )
+    verified_claims = verify_request_state(token, secret, now_seconds=now)
+    assert verified_claims == claims
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        sign_request_state(claims, b"too-short-secret")
 
     @require_human_consent(
         policy=policy,
@@ -469,3 +533,302 @@ async def test_fastmcp_mrtr_enforces_request_state_jti_binding_and_jcs() -> None
     )
     assert accepted == {"ok": True, "amount": 100, "destination": "acct_1"}
     assert executions[0] == 1
+
+
+def test_langgraph_true_interrupt_reexecution_has_zero_orphan_nonces_and_jti_binding() -> None:
+    """Simulate real LangGraph interrupt() raising on Run 1 and re-entering from line 1 on Run 2."""
+    priv, jwks = _make_key_and_jwks()
+    now = 1795450150
+    audience = "https://mcp.acme.example/v1/mcp"
+    policy = PolicyV2(
+        policy_id="lg-reexec-v2",
+        allowed_assurance_tiers=["passkey_webauthn_uv"],
+        required_modalities=["webauthn_uv"],
+        max_evidence_age_seconds=120,
+    )
+    store = InMemoryPermitNonceStoreV2()
+
+    class _GraphInterrupt(Exception):
+        def __init__(self, challenge: dict[str, object]) -> None:
+            super().__init__("graph_interrupt")
+            self.challenge = challenge
+
+    resume_payload: list[object] = []
+    seen_challenges: list[dict[str, object]] = []
+
+    def _real_interrupt(challenge: dict[str, object]) -> object:
+        seen_challenges.append(challenge)
+        if not resume_payload:
+            raise _GraphInterrupt(challenge)
+        return resume_payload.pop(0)
+
+    node = entros_consent_node(
+        policy,
+        store,
+        audience=audience,
+        jwks=jwks,
+        interrupt_fn=_real_interrupt,
+        clock=lambda: now,
+    )
+    state: dict[str, object] = {
+        "action": {
+            "kind": "mcp.tool_call",
+            "server": "treasury-mcp",
+            "tool": "transfer_funds",
+            "arguments": {"amount": 400, "currency": "USD"},
+        }
+    }
+
+    # Run 1: raises GraphInterrupt with challenge jti_1 and registers exactly 1 nonce.
+    with pytest.raises(_GraphInterrupt) as exc_info:
+        node(state)
+    challenge_1 = exc_info.value.challenge
+    jti_1 = str(challenge_1["jti"])
+    digest = str(challenge_1["request_digest"])
+    assert store.size == 1
+
+    # Register another distinct jti_2 and try to resume with jti_2 -> MUST be rejected.
+    jti_2 = "8" * 64
+    store.register(
+        jti=jti_2,
+        created_at=now,
+        expires_at=now + 300,
+        request_digest=digest,
+        aud=audience,
+        policy_id=policy.policy_id,
+    )
+    wrong_permit = _mint_passkey_permit(
+        priv,
+        jti=jti_2,
+        request_digest=digest,
+        audience=audience,
+        policy_id=policy.policy_id,
+        now=now,
+    )
+    resume_payload.append(_MockCommand(resume={"permit_jws": wrong_permit}))
+    with pytest.raises(ConsentDeniedError, match="nonce_not_found"):
+        node(state)
+    # Re-execution MUST have reused jti_1 instead of registering an orphan third nonce.
+    assert store.size == 2
+    assert seen_challenges[-1]["jti"] == jti_1
+
+    # Run 2 (legitimate resume from line 1): reuses jti_1, verifies & consumes atomically.
+    good_permit = _mint_passkey_permit(
+        priv,
+        jti=jti_1,
+        request_digest=digest,
+        audience=audience,
+        policy_id=policy.policy_id,
+        now=now,
+    )
+    resume_payload.append(_MockCommand(resume={"permit_jws": good_permit}))
+    out = node(state)
+    consent = out["entros_consent"]
+    assert isinstance(consent, dict) and consent["approved"] is True
+    assert consent["jti"] == jti_1
+    assert store.size == 2
+    rec_1 = store.peek(jti_1)
+    assert rec_1 is not None and rec_1.consumed_at == now
+
+
+async def test_langgraph_per_thread_isolation_and_async_lock() -> None:
+    import asyncio
+
+    priv, jwks = _make_key_and_jwks()
+    now = 1795450200
+    audience = "https://mcp.acme.example/v1/mcp"
+    policy = PolicyV2(
+        policy_id="lg-iso-v2",
+        allowed_assurance_tiers=["passkey_webauthn_uv"],
+        required_modalities=["webauthn_uv"],
+        max_evidence_age_seconds=120,
+    )
+    store = InMemoryPermitNonceStoreV2()
+
+    class _Pause(Exception):
+        def __init__(self, challenge: dict[str, object]) -> None:
+            super().__init__("pause")
+            self.challenge = challenge
+
+    def _raise_interrupt(challenge: dict[str, object]) -> object:
+        raise _Pause(challenge)
+
+    node = entros_consent_node(
+        policy,
+        store,
+        audience=audience,
+        jwks=jwks,
+        interrupt_fn=_raise_interrupt,
+        clock=lambda: now,
+    )
+    same_action_state: dict[str, object] = {
+        "action": {
+            "kind": "mcp.tool_call",
+            "server": "treasury-mcp",
+            "tool": "transfer_funds",
+            "arguments": {"amount": 100},
+        }
+    }
+
+    with pytest.raises(_Pause) as exc_a:
+        node(same_action_state, {"configurable": {"thread_id": "thread-A"}})
+    with pytest.raises(_Pause) as exc_b:
+        node(same_action_state, {"configurable": {"thread_id": "thread-B"}})
+    # Distinct threads for the exact same action MUST get isolated jtis.
+    assert exc_a.value.challenge["jti"] != exc_b.value.challenge["jti"]
+
+    # Re-entering thread-A reuses thread-A's jti without registering a third nonce.
+    with pytest.raises(_Pause) as exc_a2:
+        node(same_action_state, {"configurable": {"thread_id": "thread-A"}})
+    assert exc_a2.value.challenge["jti"] == exc_a.value.challenge["jti"]
+    assert store.size == 2
+
+    # Async lock coalesces concurrent check-and-register on the same thread without orphan nonces.
+    async_store = InMemoryPermitNonceStoreV2()
+
+    async def _slow_interrupt(challenge: dict[str, object]) -> object:
+        await asyncio.sleep(0.01)
+        permit = _mint_passkey_permit(
+            priv,
+            jti=str(challenge["jti"]),
+            request_digest=str(challenge["request_digest"]),
+            audience=audience,
+            policy_id=policy.policy_id,
+            now=now,
+        )
+        return _MockCommand(resume={"permit_jws": permit})
+
+    async_node = entros_consent_node_async(
+        policy,
+        async_store,
+        audience=audience,
+        jwks=jwks,
+        interrupt_fn=_slow_interrupt,
+        clock=lambda: now,
+    )
+    r1, r2 = await asyncio.gather(
+        async_node({**same_action_state, "thread_id": "async-t1"}),
+        async_node({**same_action_state, "thread_id": "async-t2"}),
+    )
+    c1 = r1["entros_consent"]
+    c2 = r2["entros_consent"]
+    assert isinstance(c1, dict) and isinstance(c2, dict)
+    assert c1["approved"] is True and c2["approved"] is True
+    assert c1["jti"] != c2["jti"]
+
+
+async def test_fastmcp_scope_injection_elicitation_id_ttl_clamp_and_optional_register() -> None:
+    priv, jwks = _make_key_and_jwks()
+    now = 1795450200
+    audience = "https://mcp.acme.example/v1/mcp"
+
+    # 1. RFC 6750 scope validation rejects header injection & deduplicates.
+    assert (
+        format_insufficient_scope_header(["mcp:read mcp:write", "mcp:read"])
+        == 'Bearer error="insufficient_scope", scope="mcp:read mcp:write entros:permit:step_up"'
+    )
+    for malicious in (
+        'read" evil="1',
+        "read\\escape",
+        "read\r\nX-Injected: 1",
+        "read\twrite",
+        "café",
+    ):
+        with pytest.raises(ValueError, match="Invalid RFC 6750 scope token"):
+            format_insufficient_scope_header(malicious)
+
+    # 2. Validates audience & approval_base_url at decoration time.
+    short_policy = PolicyV2(
+        policy_id="fastmcp-hardened-v2",
+        allowed_assurance_tiers=["passkey_webauthn_uv"],
+        required_modalities=["webauthn_uv"],
+        max_evidence_age_seconds=120,
+        max_permit_lifetime_seconds=60,
+    )
+    store = InMemoryPermitNonceStoreV2()
+    with pytest.raises(ValueError, match="audience"):
+        require_human_consent(
+            policy=short_policy,
+            audience="http://insecure.example/mcp",
+            nonce_store=store,
+            jwks=jwks,
+        )
+    with pytest.raises(ValueError, match="approval_base_url"):
+        require_human_consent(
+            policy=short_policy,
+            audience=audience,
+            approval_base_url="http://evil.example/approve",
+            nonce_store=store,
+            jwks=jwks,
+        )
+
+    # 3. Gates Round-1 nonce_store.register on require_registered_nonce=False and clamps TTL <= policy.max_permit_lifetime_seconds.
+    secret = b"fastmcp-hardened-secret-32-bytes!!"
+
+    @require_human_consent(
+        policy=short_policy,
+        audience=audience,
+        nonce_store=store,
+        jwks=jwks,
+        server="treasury-mcp",
+        protocol_mode="mcp_mrtr",
+        request_state_secret=secret,
+        challenge_ttl_seconds=300,
+        require_registered_nonce=False,
+        clock=lambda: now,
+    )
+    async def send_wire(amount: int) -> dict[str, object]:
+        return {"sent": amount}
+
+    r1 = await send_wire(amount=75)
+    assert isinstance(r1, dict) and r1["resultType"] == "input_required"
+    assert store.size == 0  # require_registered_nonce=False skipped Round-1 register
+    claims = verify_request_state(str(r1["requestState"]), secret, now_seconds=now)
+    assert claims is not None
+    assert claims.exp == now + 60  # Clamped from 300 to policy.max_permit_lifetime_seconds=60
+
+    digest = hash_action_v2(
+        {
+            "kind": "mcp.tool_call",
+            "server": "treasury-mcp",
+            "tool": "send_wire",
+            "arguments": {"amount": 75},
+        }
+    )
+    good_permit = _mint_passkey_permit(
+        priv,
+        jti=claims.jti,
+        request_digest=digest,
+        audience=audience,
+        policy_id=short_policy.policy_id,
+        now=now,
+        ttl_seconds=60,
+    )
+    other_permit = _mint_passkey_permit(
+        priv,
+        jti="7" * 64,
+        request_digest=digest,
+        audience=audience,
+        policy_id=short_policy.policy_id,
+        now=now,
+        ttl_seconds=60,
+    )
+
+    # 4. Honors elicitationId in inputResponses: rejects list with only wrong elicitationId, selects matching entry otherwise.
+    wrong_elicit = await send_wire(
+        amount=75,
+        requestState=r1["requestState"],
+        inputResponses=[{"elicitationId": "7" * 64, "permit_jws": other_permit}],
+    )
+    assert isinstance(wrong_elicit, dict) and wrong_elicit["isError"] is True
+    assert wrong_elicit["reason"] == "invalid_permit"
+
+    matched_elicit = await send_wire(
+        amount=75,
+        requestState=r1["requestState"],
+        inputResponses=[
+            {"elicitationId": "7" * 64, "permit_jws": other_permit},
+            {"elicitationId": claims.jti, "permit_jws": good_permit},
+        ],
+    )
+    assert matched_elicit == {"sent": 75}

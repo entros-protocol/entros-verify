@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { ed25519 } from "@noble/curves/ed25519.js";
+import { p256 } from "@noble/curves/nist.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,17 +29,29 @@ import {
   verifyMrtrRequestState,
 } from "../src/mcp";
 import {
+  base64Encode,
+  base64UrlDecodeStrict,
   base64UrlEncode,
+  canonicalizeJcs,
+  CanonicalJsonError,
+  computeJwkThumbprint,
   createJwksCache,
   createPermitApiClient,
   hashActionV2,
+  InMemoryDpopJtiStore,
+  parseStrictJson,
   verifyAgentPermitV2,
+  verifyDpopProofV2,
+  verifyEdDsaJws,
+  verifyScittReceipt,
+  verifyWebAuthnAssertionV2,
   type CanonicalActionV2Input,
   type JwksDocument,
   type PolicyV2,
 } from "../src/permit";
 import {
   createVoiceLivenessClient,
+  VoiceClientError,
   type VoiceClientDebugEvent,
   type WebSocketLike,
 } from "../src/voice";
@@ -223,16 +238,24 @@ describe("VoiceLivenessClient REST + WebSocket with zero audio leakage", () => {
     for (let i = 0; i < secretAudio.length; i += 1) {
       secretAudio[i] = (i * 17 + 3) & 0xff;
     }
-    const secretAudioB64 = base64UrlEncode(secretAudio);
+    const secretAudioB64 = base64Encode(secretAudio);
     const debugEvents: VoiceClientDebugEvent[] = [];
 
     const mockFetch = vi.fn(async (_url: string, init?: RequestInit) => {
-      const parsed = JSON.parse(String(init?.body)) as { audio_b64url: string };
-      expect(parsed.audio_b64url).toBe(secretAudioB64);
+      const parsed = JSON.parse(String(init?.body)) as {
+        audio_b64: string;
+        encoding: string;
+        sample_rate_hz: number;
+      };
+      expect(parsed.audio_b64).toBe(secretAudioB64);
+      expect(parsed.encoding).toBe("pcm16");
+      expect(parsed.sample_rate_hz).toBe(16000);
       return new Response(
         JSON.stringify({
           verdict_jws: jwsVectors.valid_voice_verdict.jws,
           request_id: "req_voice_01",
+          verdict: "likely_human",
+          inference_ms: 11.4,
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -281,7 +304,10 @@ describe("VoiceLivenessClient REST + WebSocket with zero audio leakage", () => {
       readyState = 1;
       constructor(
         public readonly url: string,
-        public readonly protocols?: string | string[],
+        public readonly protocols?:
+          | string
+          | string[]
+          | { headers?: Record<string, string> },
       ) {}
       send(data: string | Uint8Array | ArrayBuffer) {
         sent.push(data);
@@ -333,7 +359,15 @@ describe("VoiceLivenessClient REST + WebSocket with zero audio leakage", () => {
 
     await new Promise((r) => setTimeout(r, 30));
     expect(verdicts).toEqual(["likely_human", "likely_human", "likely_human"]);
-    expect(sent[0]).toBeInstanceOf(Uint8Array);
+    expect(JSON.parse(String(sent[0]))).toEqual({
+      type: "start",
+      session_id: "lk_room_bank_8831_caller_01",
+      codec: "opus",
+      sample_rate_hz: 16000,
+      operating_profile: "webrtc_16k",
+    });
+    expect(sent[1]).toBeInstanceOf(Uint8Array);
+    expect(JSON.parse(String(sent[2]))).toEqual({ type: "flush" });
     stream.close(1000, "stream_complete");
     expect(stream.closed).toBe(true);
     expect(closeEvents).toEqual([{ code: 1000, reason: "stream_complete" }]);
@@ -537,18 +571,16 @@ describe("MCP 2026-07-28 MRTR, SEP-1036, HTTP 403, OpenAI v2, Vercel toolApprova
       return new Response(
         JSON.stringify({
           jti: scenario.jti,
-          request_digest: hashActionV2({
-            kind: "voice.tool_call",
-            server: "voice-banking",
-            tool: "transfer_funds",
-            arguments: { amount: 250 },
-          }).requestDigest,
-          mode: "oidc_ciba",
+          protocol: "oidc_ciba",
           approval_url: `https://approve.entros.io/step-up/${scenario.jti}`,
           challenge_b64url:
             webauthnVectors.challenge_derivation.expected_challenge_b64url,
           expires_at: scenario.now_seconds + 180,
-          auth_req_id: "ciba_req_01",
+          ciba: {
+            auth_req_id: "ciba_req_01",
+            expires_in: 180,
+            interval: 2,
+          },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -582,7 +614,7 @@ describe("MCP 2026-07-28 MRTR, SEP-1036, HTTP 403, OpenAI v2, Vercel toolApprova
     expect(abstainRes.status).toBe("step_up_required");
     if (abstainRes.status === "step_up_required") {
       expect(abstainRes.reason).toBe("voice_insufficient_signal");
-      expect(abstainRes.stepUp?.auth_req_id).toBe("ciba_req_01");
+      expect(abstainRes.stepUp?.ciba?.auth_req_id).toBe("ciba_req_01");
     }
 
     const vapiGuard = createVapiWebhookGuard({
@@ -716,5 +748,1374 @@ describe("Browser signals, EntrosClient, and React EntrosPasskeyApprove", () => 
       expect(res.webauthn?.userVerified).toBe(true);
       expect(res.scittReceipt?.treeSize).toBe(5);
     }
+  });
+});
+
+describe("Security hardening regressions (crypto, DPoP, SCITT, WebAuthn, JWKS, voice, guards)", () => {
+  const encoder = new TextEncoder();
+
+  function signEd25519Jws(
+    header: Record<string, unknown>,
+    payload: Record<string, unknown>,
+    secretKey: Uint8Array,
+  ): string {
+    const h = base64UrlEncode(encoder.encode(canonicalizeJcs(header)));
+    const p = base64UrlEncode(encoder.encode(canonicalizeJcs(payload)));
+    const sig = ed25519.sign(encoder.encode(`${h}.${p}`), secretKey);
+    return `${h}.${p}.${base64UrlEncode(sig)}`;
+  }
+
+  function cborUint(major: number, val: number): Uint8Array {
+    const prefix = major << 5;
+    if (val < 24) return Uint8Array.of(prefix | val);
+    if (val < 256) return Uint8Array.of(prefix | 24, val);
+    return Uint8Array.of(prefix | 25, (val >> 8) & 0xff, val & 0xff);
+  }
+
+  function cborBytes(bytes: Uint8Array): Uint8Array {
+    const head = cborUint(2, bytes.length);
+    const out = new Uint8Array(head.length + bytes.length);
+    out.set(head, 0);
+    out.set(bytes, head.length);
+    return out;
+  }
+
+  function cborText(text: string): Uint8Array {
+    const bytes = encoder.encode(text);
+    const head = cborUint(3, bytes.length);
+    const out = new Uint8Array(head.length + bytes.length);
+    out.set(head, 0);
+    out.set(bytes, head.length);
+    return out;
+  }
+
+  function cborNegInt(value: number): Uint8Array {
+    return cborUint(1, -1 - value);
+  }
+
+  function concatAll(parts: Uint8Array[]): Uint8Array {
+    const total = parts.reduce((acc, p) => acc + p.length, 0);
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const part of parts) {
+      out.set(part, offset);
+      offset += part.length;
+    }
+    return out;
+  }
+
+  function buildScittReceipt(opts: {
+    secretKey: Uint8Array;
+    kid: string;
+    statement: Record<string, unknown>;
+    extraProtectedEntries?: Uint8Array[];
+    duplicateProtectedKey?: boolean;
+  }): string {
+    const entries: Uint8Array[] = [
+      concatAll([cborUint(0, 1), cborNegInt(-8)]), // alg: EdDSA (-8)
+      concatAll([cborUint(0, 4), cborBytes(encoder.encode(opts.kid))]),
+      concatAll([cborUint(0, 395), cborUint(0, 1)]), // vds: RFC 9162 SHA-256 (1)
+      ...(opts.extraProtectedEntries ?? []),
+    ];
+    if (opts.duplicateProtectedKey) {
+      entries.push(concatAll([cborUint(0, 1), cborNegInt(-8)]));
+    }
+    const protectedBytes = concatAll([cborUint(5, entries.length), ...entries]);
+    const payloadBytes = encoder.encode(canonicalizeJcs(opts.statement));
+
+    // Single-leaf RFC 9162 tree: tree_size=1, leaf_index=0, audit_path=[]
+    const leafHash = sha256(concatAll([Uint8Array.of(0x00), payloadBytes]));
+    const inclusionTuple = concatAll([
+      cborUint(4, 3),
+      cborUint(0, 1),
+      cborUint(0, 0),
+      cborUint(4, 0),
+    ]);
+    const vdpMap = concatAll([cborUint(5, 1), cborNegInt(-1), inclusionTuple]);
+    const unprotected = concatAll([cborUint(5, 1), cborUint(0, 396), vdpMap]);
+
+    const sigStructure = concatAll([
+      cborUint(4, 4),
+      cborText("Signature1"),
+      cborBytes(protectedBytes),
+      cborBytes(new Uint8Array(0)),
+      cborBytes(leafHash),
+    ]);
+    const sig = ed25519.sign(sigStructure, opts.secretKey);
+    const coseSign1 = concatAll([
+      Uint8Array.of(0xd2), // Tag 18
+      cborUint(4, 4),
+      cborBytes(protectedBytes),
+      unprotected,
+      cborBytes(payloadBytes),
+      cborBytes(sig),
+    ]);
+    return base64UrlEncode(coseSign1);
+  }
+
+  it("rejects Ed25519 JWS signatures with a small-order R point", async () => {
+    const sk = new Uint8Array(32).fill(7);
+    const pk = ed25519.getPublicKey(sk);
+    const jwks: JwksDocument = {
+      keys: [{ kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid: "k1", x: base64UrlEncode(pk) }],
+    };
+    const h = base64UrlEncode(
+      encoder.encode(canonicalizeJcs({ alg: "EdDSA", typ: "entros-agent-permit+jwt", kid: "k1" })),
+    );
+    const p = base64UrlEncode(encoder.encode(canonicalizeJcs({ hello: "world" })));
+    // Identity point encoding (small order 1): [1, 0, ..., 0] for R and zero S
+    const forgedSig = new Uint8Array(64);
+    forgedSig[0] = 1;
+    const res = await verifyEdDsaJws({
+      jws: `${h}.${p}.${base64UrlEncode(forgedSig)}`,
+      expectedTyp: "entros-agent-permit+jwt",
+      jwks,
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toBe("invalid_signature");
+    }
+  });
+
+  it("rejects WebAuthn signCount rollback to 0 when storedSignCount > 0", () => {
+    const priv = new Uint8Array(32).fill(11);
+    const pub = p256.getPublicKey(priv, false);
+    const rpIdHash = sha256(encoder.encode("approve.entros.io"));
+    const authData = new Uint8Array(37);
+    authData.set(rpIdHash, 0);
+    authData[32] = 0x05; // UP | UV
+    // signCount = 0 (bytes 33..36 all zero)
+    const challenge = webauthnVectors.challenge_derivation.expected_challenge_b64url;
+    const clientDataBytes = encoder.encode(
+      JSON.stringify({
+        type: "webauthn.get",
+        challenge,
+        origin: "https://approve.entros.io",
+        crossOrigin: false,
+      }),
+    );
+    const signed = new Uint8Array(authData.length + 32);
+    signed.set(authData, 0);
+    signed.set(sha256(clientDataBytes), authData.length);
+    const derSig = p256.sign(signed, priv, { format: "der", lowS: true, prehash: true });
+
+    const res = verifyWebAuthnAssertionV2({
+      assertion: {
+        credential_id: base64UrlEncode(new Uint8Array([1, 2, 3, 4])),
+        authenticator_data: base64UrlEncode(authData),
+        client_data_json: base64UrlEncode(clientDataBytes),
+        signature: base64UrlEncode(derSig),
+      },
+      publicKey: base64UrlEncode(pub),
+      expectedRpId: "approve.entros.io",
+      expectedOrigin: "https://approve.entros.io",
+      expectedChallenge: challenge,
+      storedSignCount: 5,
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toBe("webauthn_assertion_invalid");
+      expect(res.detail).toContain("signCount rollback");
+    }
+  });
+
+  it("rejects SCITT COSE crit headers, duplicate CBOR map keys, and decision='deny' receipts in Step 28", async () => {
+    const sk = new Uint8Array(32).fill(13);
+    const pk = ed25519.getPublicKey(sk);
+    const kid = "entros-scitt-test-1";
+    const jwks: JwksDocument = {
+      keys: [{ kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid, x: base64UrlEncode(pk) }],
+    };
+    const action: CanonicalActionV2Input = {
+      kind: "mcp.tool_call",
+      server: "payments",
+      tool: "wire_transfer",
+      arguments: { amount: 100 },
+    };
+    const requestDigest = hashActionV2(action).requestDigest;
+    const jti = "c".repeat(64);
+    const now = 1795450100;
+    const baseStatement = {
+      schema: "entros-scitt-permit-v2",
+      jti,
+      request_digest: requestDigest,
+      policy_id: "pol_scitt_deny",
+      decision: "allow",
+      reason: "accepted",
+      assurance_tier: "passkey_webauthn_uv",
+      modality: ["passkey_webauthn_uv"],
+      aud: "https://mcp.example.com/tools",
+      freshness_verified_at: now - 5,
+      evaluated_at: now - 2,
+      model_version: null,
+      retention: "memory_only",
+    };
+
+    // COSE protected header label 2 (crit) must fail.
+    const critReceipt = buildScittReceipt({
+      secretKey: sk,
+      kid,
+      statement: baseStatement,
+      extraProtectedEntries: [
+        concatAll([cborUint(0, 2), cborUint(4, 1), cborUint(0, 99)]),
+      ],
+    });
+    const critRes = await verifyScittReceipt({ receipt: critReceipt, jwks });
+    expect(critRes.ok).toBe(false);
+    if (!critRes.ok) {
+      expect(critRes.reason).toBe("scitt_receipt_invalid");
+    }
+
+    // Duplicate CBOR map key in protected header must fail.
+    const dupReceipt = buildScittReceipt({
+      secretKey: sk,
+      kid,
+      statement: baseStatement,
+      duplicateProtectedKey: true,
+    });
+    const dupRes = await verifyScittReceipt({ receipt: dupReceipt, jwks });
+    expect(dupRes.ok).toBe(false);
+
+    // Valid SCITT receipt with decision="deny" must be rejected by verifyAgentPermitV2 Step 28.
+    const denyReceipt = buildScittReceipt({
+      secretKey: sk,
+      kid,
+      statement: { ...baseStatement, decision: "deny", reason: "policy_denied" },
+    });
+    const standaloneDeny = await verifyScittReceipt({ receipt: denyReceipt, jwks });
+    expect(standaloneDeny.ok).toBe(true);
+
+    const permitJws = signEd25519Jws(
+      { alg: "EdDSA", typ: "entros-agent-permit+jwt", kid },
+      {
+        iss: "https://api.entros.io",
+        sub: "usr_01",
+        actor: { id: "spiffe://acme/agent" },
+        aud: "https://mcp.example.com/tools",
+        jti,
+        iat: now - 2,
+        exp: now + 120,
+        request_digest: requestDigest,
+        assurance_tier: "passkey_webauthn_uv",
+        modality: ["passkey_webauthn_uv"],
+        freshness_verified_at: now - 5,
+        continuity: { session_id: "sess_1", mode: "stateless" },
+        uniqueness_status: "unmeasured",
+        voice_verdict_jws: null,
+        webauthn_assertion_digest: "f".repeat(64),
+        policy_id: "pol_scitt_deny",
+        scitt_receipt: denyReceipt,
+      },
+      sk,
+    );
+    const verifyRes = await verifyAgentPermitV2({
+      permitJws,
+      policy: {
+        policy_id: "pol_scitt_deny",
+        version: 2,
+        allowed_assurance_tiers: ["passkey_webauthn_uv"],
+        max_evidence_age_seconds: 120,
+        max_permit_lifetime_seconds: 300,
+        required_modalities: ["passkey_webauthn_uv"],
+        require_continuity: false,
+        require_dpop: false,
+        require_scitt_receipt: true,
+      },
+      expectedAudience: "https://mcp.example.com/tools",
+      action,
+      jwks,
+      nowSeconds: now,
+    });
+    expect(verifyRes.decision).toBe("deny");
+    expect(verifyRes.reason).toBe("scitt_receipt_invalid");
+  });
+
+  it("hardens DPoP against forbidden headers, query/fragment in htu, userinfo, default ports, and jti replay", async () => {
+    const sk = new Uint8Array(32).fill(19);
+    const pk = ed25519.getPublicKey(sk);
+    const jwk = { kty: "OKP" as const, crv: "Ed25519" as const, x: base64UrlEncode(pk) };
+    const jkt = await computeJwkThumbprint(jwk);
+    const now = 1795450200;
+    const permitJws = "stub.permit.jws";
+    const ath = base64UrlEncode(sha256(encoder.encode(permitJws)));
+
+    // Default port :443 normalization & query/fragment stripping on expectedHtu succeeds.
+    const validProof = signEd25519Jws(
+      { typ: "dpop+jwt", alg: "EdDSA", jwk },
+      { jti: "dpop-jti-1", htm: "POST", htu: "https://api.example.com/tools", iat: now, ath },
+      sk,
+    );
+    const jtiStore = new InMemoryDpopJtiStore();
+    const ok = await verifyDpopProofV2({
+      proof: validProof,
+      permitJws,
+      expectedHtm: "POST",
+      expectedHtu: "https://api.example.com:443/tools?x=1#frag",
+      expectedJkt: jkt,
+      nowSeconds: now,
+      jtiStore,
+    });
+    expect(ok.ok).toBe(true);
+
+    // Replaying the same DPoP proof jti must fail closed.
+    const replay = await verifyDpopProofV2({
+      proof: validProof,
+      permitJws,
+      expectedHtm: "POST",
+      expectedHtu: "https://api.example.com/tools",
+      expectedJkt: jkt,
+      nowSeconds: now,
+      jtiStore,
+    });
+    expect(replay.ok).toBe(false);
+    if (!replay.ok) {
+      expect(replay.reason).toBe("dpop_proof_invalid");
+    }
+
+    // Query/fragment inside payload.htu must be rejected per RFC 9449 Section 4.2.
+    const queryInPayload = signEd25519Jws(
+      { typ: "dpop+jwt", alg: "EdDSA", jwk },
+      { jti: "dpop-jti-2", htm: "POST", htu: "https://api.example.com/tools?leak=1", iat: now, ath },
+      sk,
+    );
+    const badHtu = await verifyDpopProofV2({
+      proof: queryInPayload,
+      permitJws,
+      expectedHtm: "POST",
+      expectedHtu: "https://api.example.com/tools",
+      expectedJkt: jkt,
+      nowSeconds: now,
+    });
+    expect(badHtu.ok).toBe(false);
+
+    // Forbidden headers (crit, jku, x5u, x5c) must be rejected.
+    for (const forbidden of [
+      { crit: ["exp"] },
+      { jku: "https://evil.example/jwks.json" },
+      { x5u: "https://evil.example/cert.pem" },
+      { x5c: ["MIIB"] },
+    ]) {
+      const badHeaderProof = signEd25519Jws(
+        { typ: "dpop+jwt", alg: "EdDSA", jwk, ...forbidden },
+        { jti: "dpop-jti-3", htm: "POST", htu: "https://api.example.com/tools", iat: now, ath },
+        sk,
+      );
+      const res = await verifyDpopProofV2({
+        proof: badHeaderProof,
+        permitJws,
+        expectedHtm: "POST",
+        expectedHtu: "https://api.example.com/tools",
+        expectedJkt: jkt,
+        nowSeconds: now,
+      });
+      expect(res.ok).toBe(false);
+    }
+
+    // Userinfo in htu must be rejected.
+    const userinfoProof = signEd25519Jws(
+      { typ: "dpop+jwt", alg: "EdDSA", jwk },
+      { jti: "dpop-jti-4", htm: "POST", htu: "https://user:pass@api.example.com/tools", iat: now, ath },
+      sk,
+    );
+    const userinfoRes = await verifyDpopProofV2({
+      proof: userinfoProof,
+      permitJws,
+      expectedHtm: "POST",
+      expectedHtu: "https://user:pass@api.example.com/tools",
+      expectedJkt: jkt,
+      nowSeconds: now,
+    });
+    expect(userinfoRes.ok).toBe(false);
+  });
+
+  it("enforces nonce-store policyId binding and bounds JWKS negative cache", async () => {
+    const store = new InMemoryPermitNonceStoreV2();
+    const jti = "d".repeat(64);
+    store.register({
+      jti,
+      requestDigest: "e".repeat(64),
+      aud: "https://mcp.example.com/tools",
+      policyId: "pol_expected",
+      issuedAt: 1795450000,
+      expiresAt: 1795450300,
+    });
+    const wrongPolicy = store.consume({
+      jti,
+      nowSeconds: 1795450010,
+      expiresAt: 1795450300,
+      requireRegistered: true,
+      requestDigest: "e".repeat(64),
+      aud: "https://mcp.example.com/tools",
+      policyId: "pol_other",
+    });
+    expect(wrongPolicy.status).toBe("not_found");
+
+    // Bound JWKS negative cache under 5000 distinct unknown kids without hammering origin.
+    let fetches = 0;
+    const cache = createJwksCache({
+      jwksUrl: "https://api.entros.io/.well-known/jwks.json",
+      negativeCacheSeconds: 30,
+      nowSeconds: () => 1795450000,
+      fetch: (async () => {
+        fetches += 1;
+        return new Response(JSON.stringify(jwsVectors.jwks), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }) as typeof fetch,
+    });
+    for (let i = 0; i < 4200; i += 1) {
+      const r = await cache.resolveEd25519Key(`unknown-kid-${i}`);
+      expect(r.status).toBe("unknown");
+    }
+    expect(fetches).toBe(1);
+  });
+
+  it("forwards revokedKids in EntrosClient, enforces voice session_id & continuity binding, and hardens WS errors/limits", async () => {
+    const client = createEntrosClient({
+      baseUrl: "https://api.entros.io",
+      apiKey: "test-key",
+      jwks: jwsVectors.jwks,
+      revokedKids: ["entros-voice-2026-11-a"],
+      nowSeconds: () => jwsVectors.now_seconds,
+      fetch: (async () =>
+        new Response(
+          JSON.stringify({
+            request_id: "req_1",
+            verdict: "likely_human",
+            verdict_jws: jwsVectors.valid_voice_verdict.jws,
+            inference_ms: 8.5,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        )) as typeof fetch,
+    });
+    await expect(
+      client.analyzeVoice({
+        sessionId: "lk_room_bank_8831_caller_01",
+        audio: new Uint8Array([1, 2, 3, 4]),
+        codec: "pcm16_16k",
+      }),
+    ).rejects.toThrow(/revoked_kid/);
+
+    // Session ID mismatch on REST analyze must throw verdict_invalid.
+    const voiceClient = createVoiceLivenessClient({
+      baseUrl: "https://api.entros.io",
+      fetch: (async () =>
+        new Response(
+          JSON.stringify({
+            request_id: "req_2",
+            verdict: "likely_human",
+            verdict_jws: jwsVectors.valid_voice_verdict.jws,
+            inference_ms: 8.5,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        )) as typeof fetch,
+    });
+    await expect(
+      voiceClient.analyze({
+        sessionId: "different_session_id",
+        audio: new Uint8Array([1, 2, 3, 4]),
+        codec: "pcm16_16k",
+        verifyWithJwks: jwsVectors.jwks,
+        nowSeconds: jwsVectors.now_seconds,
+      }),
+    ).rejects.toThrow(/session_id does not match/);
+
+    // Voice stream: oversized message, session_id mismatch, async verify rejection, and open timeout.
+    const wsTarget = new EventTarget();
+    const wsSent: unknown[] = [];
+    class ConnectingWs implements WebSocketLike {
+      readyState = 0; // CONNECTING
+      send(data: string | Uint8Array | ArrayBuffer) {
+        wsSent.push(data);
+      }
+      close() {
+        this.readyState = 3;
+      }
+      addEventListener(type: string, listener: (ev: unknown) => void) {
+        wsTarget.addEventListener(type, listener as EventListener);
+      }
+    }
+    const streamErrors: Array<{ code: string; message: string }> = [];
+    const wsClient = createVoiceLivenessClient({
+      baseUrl: "https://api.entros.io",
+      webSocketCtor: ConnectingWs,
+    });
+    const wsStream = wsClient.connectStream({
+      sessionId: "different_session_id",
+      codec: "pcm16_16k",
+      maxInboundMessageBytes: 64,
+      openTimeoutMs: 25,
+      verifyWithJwks: {
+        resolveEd25519Key: async () => {
+          throw new Error("boom-jwks");
+        },
+      },
+      onVerdict: () => {},
+      onError: (err) => streamErrors.push({ code: err.code, message: err.message }),
+    });
+    // Sending audio while socket is still CONNECTING must throw ws_error instead of calling ws.send.
+    expect(() => wsStream.sendAudioChunk(new Uint8Array([1, 2]))).toThrow(/not open/);
+    expect(wsSent).toHaveLength(0);
+
+    // Oversized message must report protocol_error.
+    wsTarget.dispatchEvent(new MessageEvent("message", { data: "x".repeat(128) }));
+    // Async verification rejection must route to onError via .catch() (no unhandled rejection).
+    wsTarget.dispatchEvent(
+      new MessageEvent("message", { data: JSON.stringify({ verdict_jws: "a.b.c" }) }),
+    );
+    await new Promise((r) => setTimeout(r, 45));
+    expect(
+      streamErrors.some(
+        (e) =>
+          e.code === "invalid_response" &&
+          e.message.includes("maximum allowed size"),
+      ),
+    ).toBe(true);
+    expect(
+      streamErrors.some((e) => e.code === "verdict_verification_failed"),
+    ).toBe(true);
+    expect(
+      streamErrors.some(
+        (e) =>
+          e.code === "stream_error" && e.message.includes("open timed out"),
+      ),
+    ).toBe(true);
+
+    // OpenAI adapter must reject duplicate JSON keys in tool arguments.
+    await expect(
+      createV2ChallengeFromOpenAiMcpRequest(
+        {
+          type: "mcp_approval_request",
+          id: "mcpr_dup",
+          server_label: "payments",
+          name: "wire_transfer",
+          arguments: '{"amount":10,"amount":99999}',
+        },
+        {
+          audience: "https://mcp.example.com/tools",
+          policy: policyVectors.concurrent_replay_scenario.policy,
+          jwks: policyVectors.jwks,
+          stateSecret: "0123456789abcdef0123456789abcdef",
+        },
+      ),
+    ).rejects.toThrow(/JSON object/);
+
+    // LiveKit / voice webhook guard must reject permit whose continuity.session_id mismatches call.sessionId.
+    const guardSk = new Uint8Array(32).fill(29);
+    const guardPk = ed25519.getPublicKey(guardSk);
+    const guardKid = "lk-guard-key-1";
+    const guardJwks: JwksDocument = {
+      keys: [{ kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid: guardKid, x: base64UrlEncode(guardPk) }],
+    };
+    const guardNow = 1795450200;
+    const guardAction: CanonicalActionV2Input = {
+      kind: "voice.tool_call",
+      server: "voice-banking",
+      tool: "transfer_funds",
+      arguments: { amount: 250 },
+    };
+    const guardDigest = hashActionV2(guardAction).requestDigest;
+    const guardPolicy: PolicyV2 = {
+      policy_id: "pol_voice_guard",
+      version: 2,
+      allowed_assurance_tiers: ["passkey_webauthn_uv"],
+      required_modalities: ["passkey_webauthn_uv"],
+      max_evidence_age_seconds: 120,
+      max_permit_lifetime_seconds: 300,
+      require_continuity: false,
+      require_dpop: false,
+      require_scitt_receipt: false,
+    };
+    const guardPermit = signEd25519Jws(
+      { alg: "EdDSA", typ: "entros-agent-permit+jwt", kid: guardKid },
+      {
+        iss: "https://api.entros.io",
+        sub: "usr_01",
+        actor: { id: "spiffe://acme/voice-agent" },
+        aud: "https://mcp.example.com/tools",
+        jti: "e".repeat(64),
+        iat: guardNow - 2,
+        exp: guardNow + 120,
+        request_digest: guardDigest,
+        assurance_tier: "passkey_webauthn_uv",
+        modality: ["passkey_webauthn_uv"],
+        freshness_verified_at: guardNow - 5,
+        continuity: { session_id: "lk_room_real_session", mode: "stateless" },
+        uniqueness_status: "unmeasured",
+        voice_verdict_jws: null,
+        webauthn_assertion_digest: "f".repeat(64),
+        policy_id: "pol_voice_guard",
+        scitt_receipt: null,
+      },
+      guardSk,
+    );
+    const lkGuard = createLiveKitToolGuard({
+      server: "voice-banking",
+      audience: "https://mcp.example.com/tools",
+      policy: guardPolicy,
+      jwks: guardJwks,
+      nowSeconds: guardNow,
+    });
+    const wrongSessionRes = await lkGuard.guardToolCall({
+      roomName: "bank_room",
+      participantIdentity: "caller_wrong",
+      sessionId: "wrong_session_id_mismatch",
+      toolName: "transfer_funds",
+      args: { amount: 250 },
+      permitJws: guardPermit,
+    });
+    expect(wrongSessionRes.status).toBe("deny");
+    if (wrongSessionRes.status === "deny") {
+      expect(wrongSessionRes.reason).toBe("continuity_broken");
+    }
+    // Same permit on the matching session_id succeeds!
+    const okSessionRes = await lkGuard.guardToolCall({
+      roomName: "bank_room",
+      participantIdentity: "caller_ok",
+      sessionId: "lk_room_real_session",
+      toolName: "transfer_funds",
+      args: { amount: 250 },
+      permitJws: guardPermit,
+    });
+    expect(okSessionRes.status).toBe("allow");
+
+    // PermitApiClient.fetchScittReceipt rejects runtime shape violations and statement.jti mismatch.
+    const badShapeApi = createPermitApiClient({
+      baseUrl: "https://api.entros.io",
+      fetch: (async () =>
+        new Response(JSON.stringify({ unexpected: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })) as typeof fetch,
+    });
+    await expect(badShapeApi.fetchScittReceipt("a".repeat(64))).rejects.toThrow(
+      /scitt_receipt/,
+    );
+
+    const sk = new Uint8Array(32).fill(23);
+    const pk = ed25519.getPublicKey(sk);
+    const kid = "scitt-jti-check";
+    const scittJwks: JwksDocument = {
+      keys: [{ kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid, x: base64UrlEncode(pk) }],
+    };
+    const receiptForB = buildScittReceipt({
+      secretKey: sk,
+      kid,
+      statement: {
+        schema: "entros-scitt-permit-v2",
+        jti: "b".repeat(64),
+        request_digest: "c".repeat(64),
+        policy_id: "pol_1",
+        decision: "allow",
+        reason: "accepted",
+        assurance_tier: "passkey_webauthn_uv",
+        modality: ["passkey_webauthn_uv"],
+        aud: "https://mcp.example.com/tools",
+        freshness_verified_at: 1795450000,
+        evaluated_at: 1795450001,
+        model_version: null,
+        retention: "memory_only",
+      },
+    });
+    const mismatchApi = createPermitApiClient({
+      baseUrl: "https://api.entros.io",
+      fetch: (async () =>
+        new Response(JSON.stringify({ scitt_receipt: receiptForB }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })) as typeof fetch,
+    });
+    await expect(
+      mismatchApi.fetchScittReceipt("a".repeat(64), { verifyWithJwks: scittJwks }),
+    ).rejects.toThrow(/SCITT statement jti mismatch/);
+  });
+
+  it("prevents JWKS sliding-window negative-cache starvation and preserves revoked duplicate kids", async () => {
+    const sk1 = new Uint8Array(32).fill(31);
+    const pk1 = ed25519.getPublicKey(sk1);
+    const sk2 = new Uint8Array(32).fill(32);
+    const pk2 = ed25519.getPublicKey(sk2);
+    let now = 1795450000;
+    let fetches = 0;
+    let keys: JwksDocument["keys"] = [
+      { kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid: "dup-rev", status: "revoked", x: base64UrlEncode(pk1) },
+      { kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid: "dup-rev", x: base64UrlEncode(pk1) },
+    ];
+
+    const cache = createJwksCache({
+      jwksUrl: "https://api.entros.io/.well-known/jwks.json",
+      ttlSeconds: 300,
+      negativeCacheSeconds: 10,
+      nowSeconds: () => now,
+      fetch: (async () => {
+        fetches += 1;
+        return new Response(JSON.stringify({ keys }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }) as typeof fetch,
+    });
+
+    // Duplicate kid with earlier revoked=true must remain revoked.
+    expect((await cache.resolveEd25519Key("dup-rev")).status).toBe("revoked");
+    expect(fetches).toBe(1);
+
+    // Rotated key queried before published triggers refresh and negative-caches at t=1795450000.
+    now += 15;
+    expect((await cache.resolveEd25519Key("rotated-k2")).status).toBe("unknown");
+    expect(fetches).toBe(2);
+
+    // Repeated lookups during the 10s cooldown must NOT extend the negative-cache window.
+    keys = [
+      ...keys,
+      { kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid: "rotated-k2", x: base64UrlEncode(pk2) },
+    ];
+    now += 5;
+    expect((await cache.resolveEd25519Key("rotated-k2")).status).toBe("unknown");
+    now += 4;
+    expect((await cache.resolveEd25519Key("rotated-k2")).status).toBe("unknown");
+    expect(fetches).toBe(2);
+
+    // At t + 11s from the actual refresh, rotated-k2 resolves immediately.
+    now += 2;
+    expect((await cache.resolveEd25519Key("rotated-k2")).status).toBe("found");
+    expect(fetches).toBe(3);
+  });
+
+  it("keeps parseStrictJson prototype-safe on __proto__ and wraps bad escapes in CanonicalJsonError", () => {
+    const parsed = parseStrictJson('{"__proto__":{"polluted":true},"ok":1}') as Record<
+      string,
+      unknown
+    >;
+    expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+    expect(Object.getPrototypeOf(parsed)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(parsed, "__proto__")).toBe(true);
+    expect((parsed["__proto__"] as Record<string, unknown>)["polluted"]).toBe(true);
+
+    expect(() => parseStrictJson('{"bad":"\\u123"}')).toThrow(CanonicalJsonError);
+
+    const nums = Array.from({ length: 2000 }, (_, i) => i * 0.25).join(",");
+    const arr = parseStrictJson(`[${nums}]`) as number[];
+    expect(arr).toHaveLength(2000);
+    expect(arr[1999]).toBe(1999 * 0.25);
+  });
+
+  it("enforces Step 19-24 before Step 25, defers DPoP consume past Step 28, fails closed when DPoP store is full, and validates bounds", async () => {
+    const sk = new Uint8Array(32).fill(41);
+    const pk = ed25519.getPublicKey(sk);
+    const jwk = { kty: "OKP" as const, crv: "Ed25519" as const, x: base64UrlEncode(pk) };
+    const jkt = await computeJwkThumbprint(jwk);
+    const kid = "order-k1";
+    const jwks: JwksDocument = {
+      keys: [{ kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid, x: base64UrlEncode(pk) }],
+    };
+    const now = 1795450500;
+    const action: CanonicalActionV2Input = {
+      kind: "mcp.tool_call",
+      server: "payments",
+      tool: "wire_transfer",
+      arguments: { amount: 500 },
+    };
+    const digest = hashActionV2(action).requestDigest;
+
+    // 1. voice_plus_passkey with bad voice verdict AND missing webauthn must report voice error first (Step 19..24 < Step 25).
+    const badVoiceJws = signEd25519Jws(
+      { alg: "EdDSA", typ: "entros-voice-liveness+jwt", kid },
+      {
+        iss: "https://api.entros.io",
+        jti: "1".repeat(64),
+        iat: now - 5,
+        exp: now + 100,
+        session_id: "sess-order",
+        verdict: "likely_synthetic",
+        calibrated_llr: -4.2,
+        operating_profile: "webrtc_16k",
+        model_version: "0".repeat(64),
+        signal_quality: { snr_db: 22, speech_ms: 2000, clipping: 0, codec_bandwidth_hz: 8000 },
+        partial_spoof_spans: [],
+        consistency_drift: {
+          status: "evaluated",
+          windows_evaluated: 3,
+          floor_spread_db: 1,
+          tail_decay_spread_db: 1,
+          spectral_tilt_drift: 0.1,
+          reason: null,
+        },
+        abstain_reason: null,
+        retention: "memory_only",
+      },
+      sk,
+    );
+    const combinedPermit = signEd25519Jws(
+      { alg: "EdDSA", typ: "entros-agent-permit+jwt", kid },
+      {
+        iss: "https://api.entros.io",
+        sub: "usr_01",
+        actor: { id: "spiffe://acme/agent", key_jkt: jkt },
+        aud: "https://mcp.example.com/tools",
+        jti: "2".repeat(64),
+        iat: now - 5,
+        exp: now + 295,
+        request_digest: digest,
+        assurance_tier: "voice_plus_passkey",
+        modality: ["voice_liveness", "webauthn_uv"],
+        freshness_verified_at: now - 5,
+        continuity: { session_id: "sess-order", mode: "call_session", call_continuity_verified: true },
+        uniqueness_status: "enterprise_idp_subject",
+        voice_verdict_jws: badVoiceJws,
+        webauthn_assertion_digest: "f".repeat(64),
+        policy_id: "pol_order",
+        scitt_receipt: null,
+        cnf: { jkt },
+      },
+      sk,
+    );
+    const orderPolicy: PolicyV2 = {
+      policy_id: "pol_order",
+      version: 2,
+      allowed_assurance_tiers: ["voice_plus_passkey"],
+      required_modalities: ["voice_liveness", "webauthn_uv"],
+      max_evidence_age_seconds: 120,
+      max_permit_lifetime_seconds: 300,
+      require_continuity: true,
+      require_dpop: false,
+      require_scitt_receipt: false,
+    };
+    const stepOrderRes = await verifyAgentPermitV2({
+      permitJws: combinedPermit,
+      policy: orderPolicy,
+      expectedAudience: "https://mcp.example.com/tools",
+      action,
+      jwks,
+      nowSeconds: now,
+    });
+    expect(stepOrderRes.decision).toBe("deny");
+    expect(stepOrderRes.reason).toBe("voice_verdict_not_allowed");
+
+    // 2. Failed Step 28 SCITT must NOT consume DPoP jti; throwing DPoP store maps to unavailable/state_unavailable.
+    const dpopPolicy: PolicyV2 = {
+      policy_id: "pol_dpop_order",
+      version: 2,
+      allowed_assurance_tiers: ["passkey_webauthn_uv"],
+      required_modalities: ["webauthn_uv"],
+      max_evidence_age_seconds: 120,
+      max_permit_lifetime_seconds: 300,
+      require_continuity: false,
+      require_dpop: true,
+      require_scitt_receipt: true,
+    };
+    const dpopPermit = signEd25519Jws(
+      { alg: "EdDSA", typ: "entros-agent-permit+jwt", kid },
+      {
+        iss: "https://api.entros.io",
+        sub: "usr_01",
+        actor: { id: "spiffe://acme/agent", key_jkt: jkt },
+        aud: "https://mcp.example.com/tools",
+        jti: "3".repeat(64),
+        iat: now - 5,
+        exp: now + 295,
+        request_digest: digest,
+        assurance_tier: "passkey_webauthn_uv",
+        modality: ["webauthn_uv"],
+        freshness_verified_at: now - 5,
+        continuity: { session_id: "sess-dpop", mode: "stateless" },
+        uniqueness_status: "unmeasured",
+        voice_verdict_jws: null,
+        webauthn_assertion_digest: "f".repeat(64),
+        policy_id: "pol_dpop_order",
+        scitt_receipt: "invalid-cbor-receipt",
+        cnf: { jkt },
+      },
+      sk,
+    );
+    const ath = base64UrlEncode(sha256(encoder.encode(dpopPermit)));
+    const dpopProof = signEd25519Jws(
+      { typ: "dpop+jwt", alg: "EdDSA", jwk },
+      { jti: "dpop-unburned-1", htm: "POST", htu: "https://mcp.example.com/tools", iat: now, ath },
+      sk,
+    );
+    const dpopStore = new InMemoryDpopJtiStore(2);
+    const failedScitt = await verifyAgentPermitV2({
+      permitJws: dpopPermit,
+      policy: dpopPolicy,
+      expectedAudience: "https://mcp.example.com/tools",
+      action,
+      jwks,
+      nowSeconds: now,
+      dpop: { proof: dpopProof, htm: "POST", htu: "https://mcp.example.com/tools", jtiStore: dpopStore },
+    });
+    expect(failedScitt.decision).toBe("deny");
+    expect(failedScitt.reason).toBe("scitt_receipt_invalid");
+    // DPoP jti was NOT burned because Step 28 failed.
+    expect(dpopStore.consume("dpop-unburned-1", now + 60, now)).toBe(true);
+
+    const throwingStoreRes = await verifyAgentPermitV2({
+      permitJws: dpopPermit,
+      policy: { ...dpopPolicy, require_scitt_receipt: false },
+      expectedAudience: "https://mcp.example.com/tools",
+      action,
+      jwks,
+      nowSeconds: now,
+      dpop: {
+        proof: dpopProof,
+        htm: "POST",
+        htu: "https://mcp.example.com/tools",
+        jtiStore: {
+          consume: () => {
+            throw new Error("redis_down");
+          },
+        },
+      },
+    });
+    expect(throwingStoreRes.decision).toBe("unavailable");
+    expect(throwingStoreRes.reason).toBe("state_unavailable");
+
+    // 3. InMemoryDpopJtiStore fails closed when full of unexpired entries (never evicts active jti).
+    const fullStore = new InMemoryDpopJtiStore(2);
+    expect(fullStore.consume("jti-1", now + 60, now)).toBe(true);
+    expect(fullStore.consume("jti-2", now + 60, now)).toBe(true);
+    expect(fullStore.consume("jti-3", now + 60, now)).toBe(false);
+    // Original jti-1 is still tracked and rejected on replay.
+    expect(fullStore.consume("jti-1", now + 60, now)).toBe(false);
+
+    // 4. Post-precheck clock re-check catches voice verdict expiring mid-flight without burning nonce.
+    const validVoiceJws = signEd25519Jws(
+      { alg: "EdDSA", typ: "entros-voice-liveness+jwt", kid },
+      {
+        iss: "https://api.entros.io",
+        jti: "4".repeat(64),
+        iat: now - 25,
+        exp: now + 10,
+        session_id: "sess-clock",
+        verdict: "likely_human",
+        calibrated_llr: 4.5,
+        operating_profile: "webrtc_16k",
+        model_version: "0".repeat(64),
+        signal_quality: { snr_db: 22, speech_ms: 2000, clipping: 0, codec_bandwidth_hz: 8000 },
+        partial_spoof_spans: [],
+        consistency_drift: {
+          status: "evaluated",
+          windows_evaluated: 3,
+          floor_spread_db: 1,
+          tail_decay_spread_db: 1,
+          spectral_tilt_drift: 0.1,
+          reason: null,
+        },
+        abstain_reason: null,
+        retention: "memory_only",
+      },
+      sk,
+    );
+    const voicePermit = signEd25519Jws(
+      { alg: "EdDSA", typ: "entros-agent-permit+jwt", kid },
+      {
+        iss: "https://api.entros.io",
+        sub: "usr_01",
+        actor: { id: "spiffe://acme/agent" },
+        aud: "https://mcp.example.com/tools",
+        jti: "5".repeat(64),
+        iat: now - 5,
+        exp: now + 295,
+        request_digest: digest,
+        assurance_tier: "voice_liveness_webrtc",
+        modality: ["voice_liveness"],
+        freshness_verified_at: now - 25,
+        continuity: { session_id: "sess-clock", mode: "call_session", call_continuity_verified: true },
+        uniqueness_status: "session_bound",
+        voice_verdict_jws: validVoiceJws,
+        webauthn_assertion_digest: null,
+        policy_id: "pol_voice_clock",
+        scitt_receipt: null,
+      },
+      sk,
+    );
+    let clockCalls = 0;
+    const nonceStore = new InMemoryPermitNonceStoreV2();
+    const expiredPostRes = await verifyAgentPermitV2({
+      permitJws: voicePermit,
+      policy: {
+        policy_id: "pol_voice_clock",
+        version: 2,
+        allowed_assurance_tiers: ["voice_liveness_webrtc"],
+        required_modalities: ["voice_liveness"],
+        max_evidence_age_seconds: 120,
+        max_permit_lifetime_seconds: 300,
+        require_continuity: true,
+        require_dpop: false,
+        require_scitt_receipt: false,
+      },
+      expectedAudience: "https://mcp.example.com/tools",
+      action,
+      jwks,
+      nowSeconds: () => {
+        clockCalls += 1;
+        return clockCalls === 1 ? now : now + 20;
+      },
+      nonceStore,
+    });
+    expect(expiredPostRes.decision).toBe("deny");
+    expect(expiredPostRes.reason).toBe("voice_verdict_invalid");
+    expect(nonceStore.peek("5".repeat(64))).toBeNull();
+
+    // 5. Invalid numeric bounds fail closed in verifyDpopProofV2 and evaluatePolicyV2.
+    const badDpopBounds = await verifyDpopProofV2({
+      proof: dpopProof,
+      permitJws: dpopPermit,
+      expectedHtm: "POST",
+      expectedHtu: "https://mcp.example.com/tools",
+      expectedJkt: jkt,
+      nowSeconds: Number.NaN,
+      maxAgeSeconds: 0,
+    });
+    expect(badDpopBounds.ok).toBe(false);
+
+    const badPolicyBounds = evaluatePolicyV2({
+      permit: {
+        iss: "https://api.entros.io",
+        sub: "usr_01",
+        actor: { id: "spiffe://acme/agent" },
+        aud: "https://mcp.example.com/tools",
+        jti: "6".repeat(64),
+        iat: now - 5,
+        exp: now + 200,
+        request_digest: digest,
+        assurance_tier: "passkey_webauthn_uv",
+        modality: ["webauthn_uv"],
+        freshness_verified_at: now - 5,
+        continuity: { session_id: "s1", mode: "stateless" },
+        uniqueness_status: "unmeasured",
+        voice_verdict_jws: null,
+        webauthn_assertion_digest: "f".repeat(64),
+        policy_id: "pol_bad_bounds",
+        scitt_receipt: null,
+      },
+      policy: {
+        policy_id: "pol_bad_bounds",
+        version: 2,
+        allowed_assurance_tiers: ["passkey_webauthn_uv"],
+        required_modalities: ["webauthn_uv"],
+        max_evidence_age_seconds: Number.NaN,
+        max_permit_lifetime_seconds: 300,
+        require_continuity: false,
+        require_dpop: false,
+        require_scitt_receipt: false,
+      },
+      expectedAudience: "https://mcp.example.com/tools",
+      expectedRequestDigest: digest,
+      nowSeconds: now,
+    });
+    expect(badPolicyBounds.decision).toBe("deny");
+    expect(badPolicyBounds.reason).toBe("policy_mismatch");
+  });
+
+  it("hardens SCITT unprotected crit, PermitApiClient verify fail-closed, EntrosClient default receipt verify, voice guard rules, and WS serialization", async () => {
+    const sk = new Uint8Array(32).fill(51);
+    const pk = ed25519.getPublicKey(sk);
+    const kid = "scitt-unprot-crit";
+    const jwks: JwksDocument = {
+      keys: [{ kty: "OKP", crv: "Ed25519", alg: "EdDSA", kid, x: base64UrlEncode(pk) }],
+    };
+
+    // 1. SCITT rejects crit (label 2) in COSE unprotected header map.
+    const protectedBytes = concatAll([
+      cborUint(5, 3),
+      cborUint(0, 1),
+      cborNegInt(-8),
+      cborUint(0, 4),
+      cborBytes(encoder.encode(kid)),
+      cborUint(0, 395),
+      cborUint(0, 1),
+    ]);
+    const payloadBytes = encoder.encode(
+      canonicalizeJcs({
+        schema: "entros-scitt-permit-v2",
+        jti: "a".repeat(64),
+        request_digest: "b".repeat(64),
+        policy_id: "pol_1",
+        decision: "allow",
+        reason: "accepted",
+        assurance_tier: "passkey_webauthn_uv",
+        modality: ["webauthn_uv"],
+        aud: "https://mcp.example.com/tools",
+        freshness_verified_at: 1795450000,
+        evaluated_at: 1795450001,
+        model_version: null,
+        retention: "memory_only",
+      }),
+    );
+    const leafHash = sha256(concatAll([Uint8Array.of(0x00), payloadBytes]));
+    const inclusionTuple = concatAll([cborUint(4, 3), cborUint(0, 1), cborUint(0, 0), cborUint(4, 0)]);
+    const vdpMap = concatAll([cborUint(5, 1), cborNegInt(-1), inclusionTuple]);
+    // Unprotected header includes label 2 (crit) alongside 396 (vdp).
+    const unprotectedWithCrit = concatAll([
+      cborUint(5, 2),
+      cborUint(0, 2),
+      cborUint(4, 1),
+      cborUint(0, 99),
+      cborUint(0, 396),
+      vdpMap,
+    ]);
+    const sigStruct = concatAll([
+      cborUint(4, 4),
+      cborText("Signature1"),
+      cborBytes(protectedBytes),
+      cborBytes(new Uint8Array(0)),
+      cborBytes(leafHash),
+    ]);
+    const sig = ed25519.sign(sigStruct, sk);
+    const badReceipt = base64UrlEncode(
+      concatAll([
+        Uint8Array.of(0xd2),
+        cborUint(4, 4),
+        cborBytes(protectedBytes),
+        unprotectedWithCrit,
+        cborBytes(payloadBytes),
+        cborBytes(sig),
+      ]),
+    );
+    const critUnprotRes = await verifyScittReceipt({ receipt: badReceipt, jwks });
+    expect(critUnprotRes.ok).toBe(false);
+
+    // 2. PermitApiClient fails closed on contradictory verify responses & matches content-type case-insensitively.
+    const policy: PolicyV2 = {
+      policy_id: "pol_client",
+      version: 2,
+      allowed_assurance_tiers: ["passkey_webauthn_uv"],
+      required_modalities: ["webauthn_uv"],
+      max_evidence_age_seconds: 120,
+      max_permit_lifetime_seconds: 300,
+      require_continuity: false,
+      require_dpop: false,
+      require_scitt_receipt: false,
+    };
+    const action: CanonicalActionV2Input = {
+      kind: "mcp.tool_call",
+      server: "payments",
+      tool: "wire_transfer",
+      arguments: { amount: 10 },
+    };
+
+    const bogus403Api = createPermitApiClient({
+      baseUrl: "https://api.entros.io",
+      fetch: (async () =>
+        new Response(JSON.stringify({ verified: true, decision: "allow" }), {
+          status: 403,
+          headers: { "Content-Type": "APPLICATION/JSON; charset=utf-8" },
+        })) as typeof fetch,
+    });
+    await expect(
+      bogus403Api.verifyPermitOnline({
+        permit_jws: "a.b.c",
+        expected_aud: "https://mcp.example.com/tools",
+        action,
+        policy,
+      }),
+    ).rejects.toThrow(/non-2xx|allow/i);
+
+    const mismatch200Api = createPermitApiClient({
+      baseUrl: "https://api.entros.io",
+      fetch: (async () =>
+        new Response(JSON.stringify({ verified: true, decision: "deny" }), {
+          status: 200,
+          headers: { "Content-Type": "APPLICATION/JSON" },
+        })) as typeof fetch,
+    });
+    await expect(
+      mismatch200Api.verifyPermitOnline({
+        permit_jws: "a.b.c",
+        expected_aud: "https://mcp.example.com/tools",
+        action,
+        policy,
+      }),
+    ).rejects.toThrow(/disagree|mismatch/i);
+
+    // 3. EntrosClient.fetchScittReceipt verifies by default with client.jwks and supports explicit opt-out.
+    const validReceipt = buildScittReceipt({
+      secretKey: sk,
+      kid,
+      statement: {
+        schema: "entros-scitt-permit-v2",
+        jti: "a".repeat(64),
+        request_digest: "b".repeat(64),
+        policy_id: "pol_1",
+        decision: "allow",
+        reason: "accepted",
+        assurance_tier: "passkey_webauthn_uv",
+        modality: ["webauthn_uv"],
+        aud: "https://mcp.example.com/tools",
+        freshness_verified_at: 1795450000,
+        evaluated_at: 1795450001,
+        model_version: null,
+        retention: "memory_only",
+      },
+    });
+    const unifiedClient = createEntrosClient({
+      baseUrl: "https://api.entros.io",
+      jwks,
+      fetch: (async () =>
+        new Response(JSON.stringify({ scitt_receipt: validReceipt }), {
+          status: 200,
+          headers: { "Content-Type": "APPLICATION/JSON" },
+        })) as typeof fetch,
+    });
+    const defaultVerified = await unifiedClient.fetchScittReceipt("a".repeat(64));
+    expect(defaultVerified.verifiedReceipt).not.toBeNull();
+    expect(defaultVerified.verifiedReceipt?.kid).toBe(kid);
+
+    const optOut = await unifiedClient.fetchScittReceipt("a".repeat(64), {
+      verifyWithJwks: false,
+    });
+    expect(optOut.verifiedReceipt).toBeNull();
+
+    // 4. Voice webhook guard enforces full voice_rules (min_calibrated_llr, allowed_profiles, etc.).
+    const strictVoicePolicy: PolicyV2 = {
+      policy_id: "pol_voice_rules",
+      version: 2,
+      allowed_assurance_tiers: ["voice_liveness_webrtc"],
+      required_modalities: ["voice_liveness"],
+      max_evidence_age_seconds: 120,
+      max_permit_lifetime_seconds: 300,
+      require_continuity: false,
+      require_dpop: false,
+      require_scitt_receipt: false,
+      voice_rules: {
+        allowed_profiles: ["webrtc_16k"],
+        allowed_verdicts: ["likely_human"],
+        min_calibrated_llr: 10.0,
+        min_speech_ms: 1500,
+        min_snr_db: 12,
+        max_partial_spoof_spans: 0,
+        reject_on_abstain: true,
+        reject_on_consistency_drift: true,
+      },
+    };
+    const lkStrictGuard = createLiveKitToolGuard({
+      server: "voice-banking",
+      audience: "https://mcp.example.com/tools",
+      policy: strictVoicePolicy,
+      jwks: jwsVectors.jwks,
+      nowSeconds: jwsVectors.now_seconds,
+    });
+    const lowLlrStepUp = await lkStrictGuard.guardToolCall({
+      roomName: "bank_room",
+      participantIdentity: "caller_1",
+      sessionId: "lk_room_bank_8831_caller_01",
+      toolName: "transfer_funds",
+      args: { amount: 100 },
+      voiceVerdictJws: jwsVectors.valid_voice_verdict.jws,
+    });
+    expect(lowLlrStepUp.status).toBe("deny");
+    if (lowLlrStepUp.status === "deny") {
+      expect(lowLlrStepUp.reason).toBe("voice_verdict_not_allowed");
+    }
+
+    // 5. VoiceLivenessClient.connectStream serializes verdict verification, guards post-close, catches start errors, and wraps WHATWG SyntaxError.
+    class StrictWhatwgWs implements WebSocketLike {
+      readyState = 1;
+      constructor(_url: string, opts?: string | string[] | { headers?: Record<string, string> }) {
+        if (opts && typeof opts === "object" && !Array.isArray(opts)) {
+          throw new SyntaxError("Invalid subprotocol '[object Object]'");
+        }
+      }
+      send() {}
+      close() {}
+      addEventListener() {}
+    }
+    const whatwgClient = createVoiceLivenessClient({
+      baseUrl: "https://api.entros.io",
+      apiKey: "secret-key",
+      webSocketCtor: StrictWhatwgWs,
+    });
+    expect(() =>
+      whatwgClient.connectStream({
+        sessionId: "s-whatwg",
+        codec: "pcm16_16k",
+        onVerdict: () => {},
+      }),
+    ).toThrow(VoiceClientError);
+
+    const orderTarget = new EventTarget();
+    class OrderWs implements WebSocketLike {
+      readyState = 1;
+      send() {}
+      close() {
+        this.readyState = 3;
+      }
+      addEventListener(type: string, listener: (ev: unknown) => void) {
+        orderTarget.addEventListener(type, listener as EventListener);
+      }
+    }
+    let resolveCount = 0;
+    const delivered: string[] = [];
+    const orderClient = createVoiceLivenessClient({
+      baseUrl: "https://api.entros.io",
+      webSocketCtor: OrderWs,
+    });
+    const orderStream = orderClient.connectStream({
+      sessionId: "lk_room_bank_8831_caller_01",
+      codec: "pcm16_16k",
+      nowSeconds: jwsVectors.now_seconds,
+      verifyWithJwks: {
+        resolveEd25519Key: async (lookupKid) => {
+          const callNum = ++resolveCount;
+          // First verdict takes longer than second; serialization must still deliver first before second.
+          await new Promise((r) => setTimeout(r, callNum === 1 ? 30 : 2));
+          const key = jwsVectors.jwks.keys.find((k) => k.kid === lookupKid)!;
+          return {
+            status: "found",
+            kid: lookupKid,
+            publicKey: base64UrlDecodeStrict(key.x)!,
+          };
+        },
+      },
+      onVerdict: ({ verdictJws }) => {
+        delivered.push(verdictJws === jwsVectors.valid_voice_verdict.jws ? "human" : "abstain");
+      },
+    });
+    orderTarget.dispatchEvent(
+      new MessageEvent("message", {
+        data: JSON.stringify({ verdict_jws: jwsVectors.valid_voice_verdict.jws }),
+      }),
+    );
+    orderTarget.dispatchEvent(
+      new MessageEvent("message", {
+        data: JSON.stringify({ verdict_jws: jwsVectors.valid_voice_abstain.jws }),
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 70));
+    expect(delivered).toEqual(["human", "abstain"]);
+
+    // Post-close callbacks must be suppressed.
+    orderStream.close();
+    orderTarget.dispatchEvent(
+      new MessageEvent("message", {
+        data: JSON.stringify({ verdict_jws: jwsVectors.valid_voice_verdict.jws }),
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    expect(delivered).toEqual(["human", "abstain"]);
+
+    // sendStartFrame error routes cleanly to onError.
+    class FailingStartWs implements WebSocketLike {
+      readyState = 1;
+      send() {
+        throw new Error("socket write failed");
+      }
+      close() {}
+      addEventListener() {}
+    }
+    const startErrors: string[] = [];
+    const failStartClient = createVoiceLivenessClient({
+      baseUrl: "https://api.entros.io",
+      webSocketCtor: FailingStartWs,
+    });
+    failStartClient.connectStream({
+      sessionId: "s-fail-start",
+      codec: "pcm16_16k",
+      onVerdict: () => {},
+      onError: (err) => startErrors.push(err.code),
+    });
+    expect(startErrors).toEqual(["stream_error"]);
   });
 });

@@ -25,6 +25,7 @@ export type {
   CanonicalActionV2Result,
   ConsistencyDrift,
   ContinuityModeV2,
+  DpopJtiStore,
   DpopVerifyOptions,
   DpopVerifyResult,
   EcP256Jwk,
@@ -73,6 +74,7 @@ export {
 export type { CanonicalJsonErrorCode } from "./canonical";
 
 export {
+  base64Encode,
   base64UrlDecodeStrict,
   base64UrlEncode,
   bytesToHex,
@@ -112,9 +114,11 @@ export type {
 
 export {
   computeJwkThumbprint,
+  InMemoryDpopJtiStore,
   normalizeDpopHtu,
   verifyDpopProofV2,
 } from "./dpop";
+export type { JwkThumbprintInput } from "./dpop";
 
 export { decodeDefiniteCbor, verifyScittReceipt } from "./scitt";
 export type {
@@ -137,13 +141,25 @@ export {
   PermitApiError,
 } from "./client";
 export type {
+  CompleteStepUpRequestV2,
+  CompleteStepUpResponseV2,
   CreateStepUpRequestV2,
   CreateStepUpResponseV2,
+  FetchScittReceiptOptionsV2,
   FetchScittReceiptResponseV2,
+  IssuedPermitResponseV2,
+  IssuePermitEvidenceV2,
   IssuePermitRequestV2,
   IssuePermitResponseV2,
+  McpInputRequiredWireV2,
+  OidcCibaWireV2,
   PermitApiClientConfig,
+  PollStepUpResponseV2,
+  Sep1036ElicitationWireV2,
   StepUpModeV2,
+  StepUpProtocolV2,
+  StepUpRequiredIssueResponseV2,
   VerifyPermitOnlineRequestV2,
   VerifyPermitOnlineResponseV2,
+  WireWebAuthnEvidenceV2,
 } from "./client";

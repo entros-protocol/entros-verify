@@ -15,6 +15,8 @@ const PATH = "(/(?:[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~-]+)*/?)?)";
 const HTTPS_AUD = new RegExp(`^https://((?:${LABEL}\\.)+${FINAL})${PORT}${PATH}$`);
 const LOOPBACK_AUD = new RegExp(`^http://(127\\.0\\.0\\.1)${PORT}${PATH}$`);
 
+const B64_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const B64URL_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const B64URL_DECODE_TABLE = new Int16Array(128).fill(-1);
@@ -107,6 +109,35 @@ export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
 
 export function constantTimeEqualString(a: string, b: string): boolean {
   return constantTimeEqual(utf8Encoder.encode(a), utf8Encoder.encode(b));
+}
+
+export function base64Encode(bytes: Uint8Array): string {
+  let out = "";
+  let i = 0;
+  for (; i + 2 < bytes.length; i += 3) {
+    const n = (bytes[i]! << 16) | (bytes[i + 1]! << 8) | bytes[i + 2]!;
+    out +=
+      B64_ALPHABET[(n >>> 18) & 0x3f]! +
+      B64_ALPHABET[(n >>> 12) & 0x3f]! +
+      B64_ALPHABET[(n >>> 6) & 0x3f]! +
+      B64_ALPHABET[n & 0x3f]!;
+  }
+  const rem = bytes.length - i;
+  if (rem === 1) {
+    const n = bytes[i]! << 16;
+    out +=
+      B64_ALPHABET[(n >>> 18) & 0x3f]! +
+      B64_ALPHABET[(n >>> 12) & 0x3f]! +
+      "==";
+  } else if (rem === 2) {
+    const n = (bytes[i]! << 16) | (bytes[i + 1]! << 8);
+    out +=
+      B64_ALPHABET[(n >>> 18) & 0x3f]! +
+      B64_ALPHABET[(n >>> 12) & 0x3f]! +
+      B64_ALPHABET[(n >>> 6) & 0x3f]! +
+      "=";
+  }
+  return out;
 }
 
 export function base64UrlEncode(bytes: Uint8Array): string {

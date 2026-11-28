@@ -84,15 +84,14 @@
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
     "check-licenses": "node scripts/check-licenses.mjs",
     "verify-publish-contents": "node scripts/verify-publish-contents.mjs",
     "prepublishOnly": "npm run typecheck && npm test && npm run check-licenses -- --clean-room && npm run build && npm run verify-publish-contents"
   },
   "dependencies": {
     "@noble/curves": "^2.4.0",
-    "@noble/hashes": "^2.4.0",
-    "jose": "^6.2.18"
+    "@noble/hashes": "^2.4.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",

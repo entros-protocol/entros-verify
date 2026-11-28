@@ -6,7 +6,7 @@
  *   step-up routing on `suspicious` or `insufficient_signal`.
  */
 
-import { hashActionV2 } from "../permit/canonical";
+import { hashActionV2, parseStrictJson } from "../permit/canonical";
 import type {
   CreateStepUpResponseV2,
   PermitApiClient,
@@ -39,7 +39,7 @@ import { createInMemoryPermitNonceStoreV2 } from "./nonce-store-v2";
 function parseOpenAiToolArgs(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== "string" || raw.length === 0) return null;
   try {
-    const parsed: unknown = JSON.parse(raw);
+    const parsed: unknown = parseStrictJson(raw);
     return isPlainRecord(parsed) ? parsed : null;
   } catch {
     return null;
@@ -220,9 +220,7 @@ export async function settleOpenAiMcpApprovalV2(input: {
   };
 }
 
-// ============================================================================
-// Vercel AI SDK `toolApproval` ("user-approval") Adapter
-// ============================================================================
+// Vercel AI SDK `toolApproval` ("user-approval") adapter.
 
 export type VercelToolApprovalMode = "user-approval";
 
@@ -335,9 +333,7 @@ export function createVercelToolApprovalGate(
   };
 }
 
-// ============================================================================
-// LiveKit, Vapi, and Retell Voice-AI Webhook Tool Guards
-// ============================================================================
+// LiveKit, Vapi, and Retell voice-agent webhook tool guards.
 
 export interface VoiceWebhookGuardConfig {
   server: string;
@@ -429,6 +425,7 @@ export async function evaluateVoiceWebhookToolGuard(
       permitJws: call.permitJws,
       policy: config.policy,
       expectedAudience: config.audience,
+      expectedSessionId: call.sessionId,
       action,
       jwks: config.jwks,
       voiceJwks: config.voiceJwks,
@@ -468,7 +465,7 @@ export async function evaluateVoiceWebhookToolGuard(
     let stepUp: CreateStepUpResponseV2 | undefined;
     if (config.permitClient && call.sub && call.actor) {
       stepUp = await config.permitClient.createStepUp({
-        mode: config.stepUpMode ?? "oidc_ciba",
+        protocol: config.stepUpMode ?? "oidc_ciba",
         sub: call.sub,
         actor: call.actor,
         aud: config.audience,
@@ -518,6 +515,42 @@ export async function evaluateVoiceWebhookToolGuard(
     };
   }
 
+  const rules = config.policy.voice_rules;
+  if (rules?.max_voice_age_seconds !== undefined) {
+    if (
+      !Number.isFinite(rules.max_voice_age_seconds) ||
+      rules.max_voice_age_seconds < 1 ||
+      verdictRes.evaluatedAt - claims.iat > rules.max_voice_age_seconds
+    ) {
+      return {
+        status: "deny",
+        sessionId: call.sessionId,
+        requestDigest,
+        reason: "evidence_stale",
+      };
+    }
+  }
+  if (rules && !rules.allowed_profiles.includes(claims.operating_profile)) {
+    return {
+      status: "deny",
+      sessionId: call.sessionId,
+      requestDigest,
+      reason: "voice_profile_disallowed",
+    };
+  }
+  if (
+    rules?.allowed_model_versions &&
+    rules.allowed_model_versions.length > 0 &&
+    !rules.allowed_model_versions.includes(claims.model_version)
+  ) {
+    return {
+      status: "deny",
+      sessionId: call.sessionId,
+      requestDigest,
+      reason: "voice_profile_disallowed",
+    };
+  }
+
   if (claims.verdict === "likely_synthetic") {
     return {
       status: "deny",
@@ -535,8 +568,60 @@ export async function evaluateVoiceWebhookToolGuard(
     return triggerStepUp("voice_insufficient_signal", claims);
   }
 
-  const maxSpans = config.policy.voice_rules?.max_partial_spoof_spans ?? 0;
-  if (claims.partial_spoof_spans.length > maxSpans) {
+  const allowedVerdicts = rules?.allowed_verdicts ?? ["likely_human"];
+  if (!allowedVerdicts.includes(claims.verdict)) {
+    return {
+      status: "deny",
+      sessionId: call.sessionId,
+      requestDigest,
+      reason: "voice_verdict_not_allowed",
+    };
+  }
+  if (
+    rules?.min_calibrated_llr !== undefined &&
+    (!Number.isFinite(rules.min_calibrated_llr) ||
+      claims.calibrated_llr === null ||
+      claims.calibrated_llr < rules.min_calibrated_llr)
+  ) {
+    return {
+      status: "deny",
+      sessionId: call.sessionId,
+      requestDigest,
+      reason: "voice_verdict_not_allowed",
+    };
+  }
+  if (
+    rules?.min_speech_ms !== undefined &&
+    (!Number.isFinite(rules.min_speech_ms) ||
+      rules.min_speech_ms < 0 ||
+      claims.signal_quality.speech_ms < rules.min_speech_ms)
+  ) {
+    return {
+      status: "deny",
+      sessionId: call.sessionId,
+      requestDigest,
+      reason: "voice_verdict_not_allowed",
+    };
+  }
+  if (
+    rules?.min_snr_db !== undefined &&
+    (!Number.isFinite(rules.min_snr_db) ||
+      claims.signal_quality.snr_db < rules.min_snr_db)
+  ) {
+    return {
+      status: "deny",
+      sessionId: call.sessionId,
+      requestDigest,
+      reason: "voice_verdict_not_allowed",
+    };
+  }
+
+  const maxSpans = rules?.max_partial_spoof_spans ?? 0;
+  if (
+    !Number.isFinite(maxSpans) ||
+    maxSpans < 0 ||
+    claims.partial_spoof_spans.length > maxSpans
+  ) {
     return {
       status: "deny",
       sessionId: call.sessionId,
@@ -544,8 +629,24 @@ export async function evaluateVoiceWebhookToolGuard(
       reason: "partial_spoof_detected",
     };
   }
+  if (rules?.max_partial_spoof_probability !== undefined) {
+    const probCap = rules.max_partial_spoof_probability;
+    if (
+      !Number.isFinite(probCap) ||
+      probCap < 0 ||
+      probCap > 1 ||
+      claims.partial_spoof_spans.some((span) => span.spoof_probability > probCap)
+    ) {
+      return {
+        status: "deny",
+        sessionId: call.sessionId,
+        requestDigest,
+        reason: "partial_spoof_detected",
+      };
+    }
+  }
   if (
-    config.policy.voice_rules?.reject_on_consistency_drift !== false &&
+    rules?.reject_on_consistency_drift !== false &&
     claims.consistency_drift.status === "elevated"
   ) {
     return {

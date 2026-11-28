@@ -3,21 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import math
 from pathlib import Path
 from typing import cast
 
+import httpx
 import pytest
 
 from entros_verify import (
     CanonicalizationError,
     DpopVerificationInput,
+    EntrosClient,
     InMemoryPermitNonceStoreV2,
+    IssuedPermitResponse,
     JsonObject,
     PolicyV2,
     RefusalCode,
     StaticJwksProvider,
+    StepUpRequiredResponse,
     WebAuthnAssertionInput,
     canonicalize_action_v2,
     canonicalize_jcs,
@@ -29,7 +34,13 @@ from entros_verify import (
     verify_voice_liveness_verdict,
     verify_webauthn_assertion,
 )
+from entros_verify.adapters.fastmcp import (
+    RequestStateClaims,
+    sign_request_state,
+    verify_request_state,
+)
 from entros_verify.scitt import ScittVerificationError
+from entros_verify.voice import VoiceCodec
 
 VECTORS_DIR = Path(__file__).resolve().parents[2] / "spec" / "vectors" / "agent-permit-v2"
 
@@ -454,3 +465,214 @@ async def test_policy_v2_32_way_concurrent_replay_scenario() -> None:
     )
     assert allows == scenario["expected_allows"] == 1
     assert replayed == scenario["expected_nonce_replayed"] == 31
+
+
+def test_wire_contracts_parity_vectors() -> None:
+    wire = _load_json("wire-contracts.json")
+    jws_data = _load_json("jws-eddsa-vectors.json")
+    jwks = StaticJwksProvider(cast(dict[str, object], jws_data["jwks"]))
+    jws_now = cast(int, jws_data["now_seconds"])
+    valid_voice_jws = cast(str, cast(dict[str, object], jws_data["valid_voice_verdict"])["jws"])
+
+    # 1. Cross-runtime MRTR requestState HMAC-SHA256 parity with TS and Rust.
+    mrtr = cast(dict[str, object], wire["mrtr_request_state"])
+    claims_raw = cast(dict[str, object], mrtr["claims"])
+    claims = RequestStateClaims(
+        v=cast(int, claims_raw["v"]),
+        jti=cast(str, claims_raw["jti"]),
+        request_digest=cast(str, claims_raw["request_digest"]),
+        aud=cast(str, claims_raw["aud"]),
+        policy_id=cast(str, claims_raw["policy_id"]),
+        iat=cast(int, claims_raw["iat"]),
+        exp=cast(int, claims_raw["exp"]),
+    )
+    secret = cast(str, mrtr["secret_utf8"]).encode("utf-8")
+    token = sign_request_state(claims, secret)
+    expected_mrtr_token = cast(str, mrtr["expected_token"])
+    assert token == expected_mrtr_token
+
+    verified = verify_request_state(
+        expected_mrtr_token,
+        secret,
+        now_seconds=cast(int, mrtr["now_valid"]),
+    )
+    assert verified == claims
+
+    expired = verify_request_state(
+        expected_mrtr_token,
+        secret,
+        now_seconds=cast(int, mrtr["now_expired"]),
+    )
+    assert expired is None
+
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        sign_request_state(claims, cast(str, mrtr["short_secret_utf8"]).encode("utf-8"))
+
+    # 2. Voice analyze standard Base64 audio_b64 + all codec mappings.
+    va = cast(dict[str, object], wire["voice_analyze"])
+    audio_bytes = bytes.fromhex(cast(str, va["audio_hex"]))
+    assert base64.b64encode(audio_bytes).decode("ascii") == va["audio_b64_standard"]
+
+    for mapping in cast(list[dict[str, object]], va["codec_mappings"]):
+        seen: list[dict[str, object]] = []
+
+        def _va_handler(
+            request: httpx.Request,
+            bucket: list[dict[str, object]] = seen,
+        ) -> httpx.Response:
+            assert request.url.path == va["path"]
+            bucket.append(json.loads(request.content.decode("utf-8")))
+            return httpx.Response(
+                200,
+                json={
+                    "request_id": "req_wire_py",
+                    "verdict": "likely_human",
+                    "verdict_jws": valid_voice_jws,
+                    "inference_ms": 14.2,
+                },
+            )
+
+        with EntrosClient(
+            "https://api.entros.io",
+            api_key="entros_test_key",
+            jwks=jwks,
+            transport=httpx.MockTransport(_va_handler),
+        ) as client:
+            res = client.analyze_voice(
+                audio_bytes,
+                session_id="lk_room_bank_8831_caller_01",
+                codec=cast(VoiceCodec, mapping["sdk_codec"]),
+                operating_profile="wideband_clean",
+                now_seconds=jws_now,
+            )
+            assert res.verdict is not None and res.verdict.verdict == "likely_human"
+            assert seen[0]["audio_b64"] == va["audio_b64_standard"]
+            assert seen[0]["encoding"] == mapping["wire_encoding"]
+            if mapping["sample_rate_hz"] is None:
+                assert "sample_rate_hz" not in seen[0]
+            else:
+                assert seen[0]["sample_rate_hz"] == mapping["sample_rate_hz"]
+
+    # 3. Permits issue (200/202), step-up (create/poll/complete), verify (200/403/409), receipt jti validation.
+    pi = cast(dict[str, object], wire["permits_issue"])
+    ps = cast(dict[str, object], wire["permits_step_up"])
+    pv = cast(dict[str, object], wire["permits_verify"])
+    pr = cast(dict[str, object], wire["permits_receipt"])
+
+    action = cast(dict[str, object], pi["canonical_action"])
+    assert hash_action_v2(action) == pi["expected_request_digest"]
+
+    policy = PolicyV2(
+        policy_id="pol_wire_v2",
+        allowed_assurance_tiers=["voice_liveness_webrtc"],
+        required_modalities=["voice_liveness"],
+        max_evidence_age_seconds=120,
+        max_permit_lifetime_seconds=300,
+    )
+    queue: list[tuple[int, dict[str, object]]] = [
+        (200, cast(dict[str, object], pi["response_200_issued"])),
+        (202, cast(dict[str, object], pi["response_202_step_up_required"])),
+        (cast(int, ps["create_status"]), cast(dict[str, object], ps["create_response_201"])),
+        (200, cast(dict[str, object], ps["poll_response_pending"])),
+        (200, cast(dict[str, object], ps["poll_response_completed"])),
+        (200, cast(dict[str, object], ps["complete_response_200"])),
+        (200, cast(dict[str, object], pv["response_200_allow"])),
+        (403, cast(dict[str, object], pv["response_403_deny"])),
+        (409, cast(dict[str, object], pv["response_409_replay"])),
+    ]
+    recorded_bodies: list[dict[str, object]] = []
+
+    def _permit_handler(request: httpx.Request) -> httpx.Response:
+        recorded_bodies.append(json.loads(request.content.decode("utf-8")))
+        status, body = queue.pop(0)
+        return httpx.Response(status, json=body)
+
+    with EntrosClient(
+        "https://api.entros.io",
+        api_key="entros_api_key",
+        jwks=jwks,
+        transport=httpx.MockTransport(_permit_handler),
+    ) as client:
+        r_issued = client.issue_permit(
+            sub="usr_01",
+            actor={"id": "spiffe://acme/agent"},
+            aud="https://mcp.example.com/tools",
+            action=action,
+            policy=policy,
+            voice_verdict_jws=valid_voice_jws,
+        )
+        assert isinstance(r_issued, IssuedPermitResponse)
+        assert recorded_bodies[0]["ttl_seconds"] == pi["default_ttl_seconds"]
+
+        r_step_up = client.issue_permit(
+            sub="usr_01",
+            actor={"id": "spiffe://acme/agent"},
+            aud="https://mcp.example.com/tools",
+            action=action,
+            policy=policy,
+        )
+        assert isinstance(r_step_up, StepUpRequiredResponse)
+
+        r_create = client.request_step_up(
+            protocol="mcp_mrtr",
+            sub="usr_01",
+            actor={"id": "spiffe://acme/agent"},
+            aud="https://mcp.example.com/tools",
+            policy_id="pol_wire_v2",
+            request_digest=str(pi["expected_request_digest"]),
+        )
+        assert recorded_bodies[2]["operation"] == "create"
+        assert r_create.protocol == "mcp_mrtr"
+
+        poll_req = cast(dict[str, object], ps["poll_request"])
+        poll_jti = cast(str, poll_req["jti"])
+        r_pending = client.poll_step_up(poll_jti)
+        assert recorded_bodies[3] == poll_req
+        assert r_pending.status == "pending"
+
+        r_completed_poll = client.poll_step_up(poll_jti)
+        assert r_completed_poll.status == "completed"
+
+        r_complete = client.complete_step_up(
+            jti=poll_jti,
+            webauthn_assertion={
+                "credential_id": "cred_1",
+                "authenticator_data": "AQID",
+                "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+                "signature": "MEUC",
+            },
+            public_key="04" + "11" * 64,
+            expected_rp_id="approve.entros.io",
+            expected_origin="https://approve.entros.io",
+        )
+        assert recorded_bodies[5]["operation"] == "complete"
+        assert r_complete.jti == poll_jti
+
+        r_v200 = client.verify_permit_online(
+            permit_jws="header.payload.sig",
+            expected_aud="https://mcp.example.com/tools",
+            action=action,
+            policy=policy,
+        )
+        assert r_v200.verified is True
+        assert r_v200.reason is None
+
+        r_v403 = client.verify_permit_online(
+            permit_jws="header.payload.sig",
+            expected_aud="https://mcp.example.com/tools",
+            action=action,
+            policy=policy,
+        )
+        assert r_v403.verified is False and r_v403.reason == "assurance_downgrade"
+
+        r_v409 = client.verify_permit_online(
+            permit_jws="header.payload.sig",
+            expected_aud="https://mcp.example.com/tools",
+            action=action,
+            policy=policy,
+        )
+        assert r_v409.verified is False and r_v409.reason == "nonce_replayed"
+
+        for bad_jti in cast(list[str], pr["invalid_jtis"]):
+            with pytest.raises(ValueError, match="64-char"):
+                client.get_receipt(bad_jti)

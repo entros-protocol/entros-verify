@@ -73,6 +73,9 @@ class PermitNonceStoreV2(Protocol):
     ) -> Awaitable[NonceConsumeResult] | NonceConsumeResult: ...
 
 
+_LAZY_PRUNE_INTERVAL_SECONDS = 10
+
+
 class InMemoryPermitNonceStoreV2:
     """Thread-safe and asyncio-safe single-process atomic PermitNonceStoreV2.
 
@@ -94,23 +97,38 @@ class InMemoryPermitNonceStoreV2:
         self._max_entries = max_entries
         self._retain_consumed_seconds = retain_consumed_seconds
         self._records: dict[str, PermitNonceRecord] = {}
+        self._last_prune_at: int | None = None
         self._lock = threading.Lock()
+
+    def _is_stale(self, record: PermitNonceRecord, now_seconds: int) -> bool:
+        if record.consumed_at is None:
+            return now_seconds >= record.expires_at
+        return now_seconds >= record.expires_at + self._retain_consumed_seconds
 
     def _prune_unlocked(self, now_seconds: int) -> int:
         if now_seconds < 1:
             return 0
-        to_delete: list[str] = []
-        for jti, record in self._records.items():
-            stale_pending = record.consumed_at is None and now_seconds >= record.expires_at
-            stale_consumed = (
-                record.consumed_at is not None
-                and now_seconds >= record.expires_at + self._retain_consumed_seconds
-            )
-            if stale_pending or stale_consumed:
-                to_delete.append(jti)
+        to_delete = [
+            jti for jti, record in self._records.items() if self._is_stale(record, now_seconds)
+        ]
         for jti in to_delete:
             del self._records[jti]
+        self._last_prune_at = now_seconds
         return len(to_delete)
+
+    def _maybe_prune_unlocked(self, now_seconds: int) -> None:
+        if now_seconds < 1:
+            return
+        if not self._records:
+            self._last_prune_at = now_seconds
+            return
+        if len(self._records) >= self._max_entries or (
+            self._last_prune_at is not None
+            and now_seconds - self._last_prune_at >= _LAZY_PRUNE_INTERVAL_SECONDS
+        ):
+            self._prune_unlocked(now_seconds)
+        elif self._last_prune_at is None:
+            self._last_prune_at = now_seconds
 
     def prune(self, now_seconds: int) -> int:
         """Remove expired pending entries and consumed entries past retention."""
@@ -131,9 +149,13 @@ class InMemoryPermitNonceStoreV2:
         if not jti:
             raise NonceStoreError("invalid_record", "jti must be non-empty")
         with self._lock:
-            self._prune_unlocked(created_at)
-            if jti in self._records:
-                raise NonceStoreError("duplicate_nonce", f"Nonce {jti} is already registered")
+            existing = self._records.get(jti)
+            if existing is not None:
+                if created_at >= 1 and self._is_stale(existing, created_at):
+                    del self._records[jti]
+                else:
+                    raise NonceStoreError("duplicate_nonce", f"Nonce {jti} is already registered")
+            self._maybe_prune_unlocked(created_at)
             if len(self._records) >= self._max_entries:
                 raise NonceStoreError("capacity_reached", "Nonce store capacity reached")
             self._records[jti] = PermitNonceRecord(
@@ -182,6 +204,8 @@ class InMemoryPermitNonceStoreV2:
                     return NonceConsumeResult(status="not_found")
                 if existing.aud is not None and aud is not None and existing.aud != aud:
                     return NonceConsumeResult(status="not_found")
+                if existing.policy_id is not None and existing.policy_id != policy_id:
+                    return NonceConsumeResult(status="not_found")
                 consumed = PermitNonceRecord(
                     jti=existing.jti,
                     expires_at=existing.expires_at,
@@ -204,7 +228,7 @@ class InMemoryPermitNonceStoreV2:
             if now_seconds >= expires_at:
                 return NonceConsumeResult(status="expired")
 
-            self._prune_unlocked(now_seconds)
+            self._maybe_prune_unlocked(now_seconds)
             if len(self._records) >= self._max_entries:
                 raise NonceStoreError("capacity_reached", "Nonce store capacity reached")
 

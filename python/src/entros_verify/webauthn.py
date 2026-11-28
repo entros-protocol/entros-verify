@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
@@ -21,7 +22,11 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 )
 
 from entros_verify.canonical import canonicalize_jcs_bytes
-from entros_verify.jws import b64url_decode_nopad, b64url_encode_nopad
+from entros_verify.jws import (
+    _parse_json_object_strict,
+    b64url_decode_nopad,
+    b64url_encode_nopad,
+)
 from entros_verify.models import (
     JsonObject,
     RefusalCode,
@@ -34,6 +39,13 @@ WEBAUTHN_ASSERTION_PREFIX = b"Entros-WebAuthn-Assertion-v2\n"
 FLAG_UP = 0x01
 FLAG_UV = 0x04
 MIN_AUTH_DATA_LEN = 37
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_HEX130_RE = re.compile(r"^[0-9a-fA-F]{130}$")
+_ZERO_HEX64 = "0" * 64
+
+
+def _is_non_zero_hex64(value: object) -> bool:
+    return isinstance(value, str) and bool(_HEX64_RE.match(value)) and value != _ZERO_HEX64
 
 
 def _coerce_bytes(value: bytes | str) -> bytes:
@@ -81,7 +93,12 @@ def _load_p256_public_key(public_key: bytes | str | JsonObject) -> ec.EllipticCu
             ):
                 raise ValueError("PEM key must be ECDSA P-256")
             return loaded_pem
-        raw_bytes = b64url_decode_nopad(public_key)
+        if len(public_key) == 130 and _HEX130_RE.match(public_key):
+            raw_bytes = bytes.fromhex(public_key)
+            if raw_bytes[0] != 0x04:
+                raise ValueError("Uncompressed hex P-256 public key must start with 0x04")
+        else:
+            raw_bytes = b64url_decode_nopad(public_key)
     elif isinstance(public_key, bytes):
         if public_key.startswith(b"-----BEGIN"):
             loaded_pem = serialization.load_pem_public_key(public_key)
@@ -107,11 +124,15 @@ def _load_p256_public_key(public_key: bytes | str | JsonObject) -> ec.EllipticCu
 
 def derive_webauthn_challenge(jti: str, request_digest: str) -> tuple[bytes, str]:
     """Derive 32-byte permit_challenge and its unpadded Base64URL encoding."""
+    if not _is_non_zero_hex64(jti):
+        raise ValueError("Permit jti must be a non-zero 64-char lowercase hex string")
+    if not _is_non_zero_hex64(request_digest):
+        raise ValueError("Permit request_digest must be a non-zero 64-char lowercase hex string")
     preimage = (
         WEBAUTHN_CHALLENGE_PREFIX
-        + jti.encode("utf-8")
+        + jti.encode("ascii")
         + b"\n"
-        + request_digest.encode("utf-8")
+        + request_digest.encode("ascii")
     )
     digest = hashlib.sha256(preimage).digest()
     return digest, b64url_encode_nopad(digest)
@@ -174,18 +195,25 @@ def verify_webauthn_assertion(
     flags = auth_data[32]
     sign_count = int.from_bytes(auth_data[33:37], "big")
 
-    expected_rp_id_hash = hashlib.sha256(assertion.expected_rp_id.encode("utf-8")).digest()
+    try:
+        expected_rp_id_hash = hashlib.sha256(assertion.expected_rp_id.encode("utf-8")).digest()
+        expected_origin_bytes = assertion.expected_origin.encode("utf-8")
+        _, expected_challenge_b64url = derive_webauthn_challenge(jti, request_digest)
+    except (ValueError, UnicodeEncodeError):
+        return WebAuthnVerificationResult(
+            ok=False,
+            reason=RefusalCode.WEBAUTHN_ASSERTION_INVALID,
+        )
     if not hmac.compare_digest(rp_id_hash, expected_rp_id_hash):
         return WebAuthnVerificationResult(
             ok=False,
             reason=RefusalCode.WEBAUTHN_ASSERTION_INVALID,
         )
 
-    # Check signCount rollback when both stored and presented counts are non-zero.
+    # Reject signCount rollback whenever stored_sign_count > 0 (including rollback to 0).
     if (
         assertion.stored_sign_count is not None
         and assertion.stored_sign_count > 0
-        and sign_count > 0
         and sign_count <= assertion.stored_sign_count
     ):
         return WebAuthnVerificationResult(
@@ -195,13 +223,8 @@ def verify_webauthn_assertion(
 
     # Parse and validate clientDataJSON strictly.
     try:
-        client_data: object = json.loads(client_data_raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return WebAuthnVerificationResult(
-            ok=False,
-            reason=RefusalCode.WEBAUTHN_ASSERTION_INVALID,
-        )
-    if not isinstance(client_data, dict):
+        client_data = _parse_json_object_strict(client_data_raw)
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
         return WebAuthnVerificationResult(
             ok=False,
             reason=RefusalCode.WEBAUTHN_ASSERTION_INVALID,
@@ -215,7 +238,7 @@ def verify_webauthn_assertion(
 
     origin = client_data.get("origin")
     if not isinstance(origin, str) or not hmac.compare_digest(
-        origin.encode("utf-8"), assertion.expected_origin.encode("utf-8")
+        origin.encode("utf-8"), expected_origin_bytes
     ):
         return WebAuthnVerificationResult(
             ok=False,
@@ -230,7 +253,6 @@ def verify_webauthn_assertion(
         )
 
     challenge = client_data.get("challenge")
-    _, expected_challenge_b64url = derive_webauthn_challenge(jti, request_digest)
     if not isinstance(challenge, str) or not hmac.compare_digest(
         challenge.encode("utf-8"), expected_challenge_b64url.encode("ascii")
     ):
@@ -274,8 +296,11 @@ def verify_webauthn_assertion(
         credential_id=cred_id,
         der_signature=der_sig,
     )
-    if expected_assertion_digest is not None and not hmac.compare_digest(
-        assertion_digest.encode("ascii"), expected_assertion_digest.encode("ascii")
+    if expected_assertion_digest is not None and (
+        not expected_assertion_digest.isascii()
+        or not hmac.compare_digest(
+            assertion_digest.encode("ascii"), expected_assertion_digest.encode("ascii")
+        )
     ):
         return WebAuthnVerificationResult(
             ok=False,

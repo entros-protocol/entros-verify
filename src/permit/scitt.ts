@@ -259,6 +259,26 @@ function isCborTagged(value: CborValue | undefined): value is CborTagged {
   );
 }
 
+function assertUniqueMapKeys(map: CborMap): void {
+  const seen = new Set<string>();
+  for (const [k] of map.entries) {
+    let keyRepr: string;
+    if (typeof k === "number") {
+      keyRepr = `n:${k}`;
+    } else if (typeof k === "string") {
+      keyRepr = `s:${k}`;
+    } else if (k instanceof Uint8Array) {
+      keyRepr = `b:${bytesToHex(k)}`;
+    } else {
+      throw new CborDecodeError("Unsupported non-scalar CBOR map key");
+    }
+    if (seen.has(keyRepr)) {
+      throw new CborDecodeError("Duplicate CBOR map key");
+    }
+    seen.add(keyRepr);
+  }
+}
+
 function findIntKey(map: CborMap, target: number): CborValue | undefined {
   let found: CborValue | undefined;
   for (const [k, v] of map.entries) {
@@ -391,6 +411,7 @@ export interface VerifyScittReceiptOptions {
   expectedRequestDigest?: string;
   expectedPolicyId?: string;
   expectedAud?: string;
+  expectedDecision?: "allow" | "deny";
 }
 
 /**
@@ -455,11 +476,17 @@ export async function verifyScittReceipt(
   }
 
   let alg: CborValue | undefined;
+  let crit: CborValue | undefined;
+  let unprotectedCrit: CborValue | undefined;
   let kidVal: CborValue | undefined;
   let vds: CborValue | undefined;
   let vdp: CborValue | undefined;
   try {
+    assertUniqueMapKeys(protectedDecoded);
+    assertUniqueMapKeys(unprotectedMap);
     alg = findIntKey(protectedDecoded, 1);
+    crit = findIntKey(protectedDecoded, 2);
+    unprotectedCrit = findIntKey(unprotectedMap, 2);
     kidVal = findIntKey(protectedDecoded, 4);
     vds = findIntKey(protectedDecoded, 395);
     vdp = findIntKey(unprotectedMap, 396);
@@ -469,6 +496,14 @@ export async function verifyScittReceipt(
     );
   }
 
+  if (crit !== undefined) {
+    return fail("COSE_Sign1 protected header contains unsupported crit (2) header");
+  }
+  if (unprotectedCrit !== undefined) {
+    return fail(
+      "COSE_Sign1 unprotected header contains forbidden crit (2) header",
+    );
+  }
   if (alg !== -8) {
     return fail("COSE_Sign1 protected header alg (1) must equal -8 (EdDSA)");
   }
@@ -488,6 +523,7 @@ export async function verifyScittReceipt(
   }
   let inclusionProof: CborValue | undefined;
   try {
+    assertUniqueMapKeys(vdp);
     inclusionProof = findIntKey(vdp, -1);
   } catch {
     return fail("Duplicate inclusion proof entry in vdp");
@@ -540,6 +576,12 @@ export async function verifyScittReceipt(
     statement.aud !== options.expectedAud
   ) {
     return fail("SCITT statement aud mismatch");
+  }
+  if (
+    options.expectedDecision !== undefined &&
+    statement.decision !== options.expectedDecision
+  ) {
+    return fail("SCITT statement decision mismatch");
   }
 
   const leafHash = sha256(concatBytes(Uint8Array.of(0x00), payloadBstr));

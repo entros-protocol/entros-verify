@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib.metadata
 import json
 import re
 import subprocess
@@ -125,10 +126,24 @@ def evaluate_license_expression(license_expr: object) -> tuple[bool, str | None]
     return False, f"license_not_in_allowlist:{trimmed}"
 
 
+def _resolve_package_version(records: Iterable[Mapping[str, object]]) -> str:
+    try:
+        return importlib.metadata.version("entros-verify")
+    except importlib.metadata.PackageNotFoundError:
+        for rec in records:
+            if str(rec.get("Name", "")).strip().lower() == "entros-verify":
+                ver = str(rec.get("Version", "")).strip()
+                if ver:
+                    return ver
+        return "0.0.0"
+
+
 def build_cyclonedx_sbom(records: Iterable[Mapping[str, object]]) -> dict[str, object]:
     """Build a CycloneDX 1.5 JSON SBOM document from pip-licenses records."""
+    record_list = list(records)
+    package_version = _resolve_package_version(record_list)
     components: list[dict[str, object]] = []
-    for rec in sorted(records, key=lambda r: str(r.get("Name", "")).lower()):
+    for rec in sorted(record_list, key=lambda r: str(r.get("Name", "")).lower()):
         name = str(rec.get("Name", "")).strip()
         version = str(rec.get("Version", "")).strip()
         lic = str(rec.get("License", "UNKNOWN")).strip() or "UNKNOWN"
@@ -153,7 +168,7 @@ def build_cyclonedx_sbom(records: Iterable[Mapping[str, object]]) -> dict[str, o
             "component": {
                 "type": "library",
                 "name": "entros-verify",
-                "version": "1.0.0",
+                "version": package_version,
                 "licenses": [{"license": {"id": "MIT"}}],
             },
         },

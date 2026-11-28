@@ -31,6 +31,7 @@ _SQRT_M1 = pow(2, (_ED25519_P - 1) // 4, _ED25519_P)
 
 _B64URL_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _FORBIDDEN_HEADERS = frozenset({"jwk", "jku", "x5u", "x5c", "crit"})
+MAX_JSON_DEPTH = 32
 
 
 def b64url_encode_nopad(data: bytes) -> str:
@@ -51,8 +52,48 @@ def b64url_decode_nopad(segment: str) -> bytes:
     return decoded
 
 
+def _assert_json_depth(text: str, max_depth: int = MAX_JSON_DEPTH) -> None:
+    """Enforce maximum JSON container nesting depth linearly without recursion."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for ch in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            depth += 1
+            if depth > max_depth:
+                raise ValueError(f"JSON nesting depth exceeds maximum of {max_depth}")
+        elif ch in "}]":
+            depth -= 1
+
+
+def _reject_lone_surrogates(value: object) -> None:
+    """Reject unpaired UTF-16 surrogates (U+D800..U+DFFF) decoded from \\uXXXX escapes."""
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("JSON string contains lone UTF-16 surrogate") from exc
+    elif isinstance(value, list):
+        for item in value:
+            _reject_lone_surrogates(item)
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            _reject_lone_surrogates(k)
+            _reject_lone_surrogates(v)
+
+
 def _parse_json_object_strict(raw_bytes: bytes) -> dict[str, object]:
-    """Decode strict UTF-8 JSON object rejecting duplicate keys and NaN/Infinity."""
+    """Decode strict UTF-8 JSON object rejecting duplicate keys, surrogates, deep nesting, and NaN/Infinity."""
 
     def _reject_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
         result: dict[str, object] = {}
@@ -66,13 +107,18 @@ def _parse_json_object_strict(raw_bytes: bytes) -> dict[str, object]:
         raise ValueError(f"Forbidden JSON constant: {constant}")
 
     text = raw_bytes.decode("utf-8")
-    parsed: object = json.loads(
-        text,
-        object_pairs_hook=_reject_duplicates,
-        parse_constant=_reject_constant,
-    )
+    _assert_json_depth(text)
+    try:
+        parsed: object = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicates,
+            parse_constant=_reject_constant,
+        )
+    except RecursionError as exc:
+        raise ValueError("JSON nesting depth exceeded") from exc
     if not isinstance(parsed, dict):
         raise ValueError("JSON root must be an object")
+    _reject_lone_surrogates(parsed)
     return parsed
 
 
@@ -208,7 +254,7 @@ def parse_and_validate_jws_header(
         signature_bytes = b64url_decode_nopad(sig_b64)
         header = _parse_json_object_strict(header_bytes)
         payload = _parse_json_object_strict(payload_bytes)
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise JwsVerificationError(
             RefusalCode.INVALID_JWS.value,
             f"Malformed JWS encoding or JSON: {exc}",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -16,9 +18,6 @@ from entros_verify import (
     ScittDecisionPayload,
     ScittVerificationError,
     StaticJwksProvider,
-    b64url_encode_nopad,
-    create_scitt_receipt,
-    sign_eddsa_compact_jws,
     verify_agent_permit_v2,
     verify_agent_permit_v2_async,
     verify_ed25519_strict,
@@ -27,6 +26,13 @@ from entros_verify import (
     verify_voice_liveness_verdict,
     verify_voice_liveness_verdict_async,
 )
+from entros_verify._testing import (
+    b64url_encode_nopad,
+    create_scitt_receipt,
+    sign_eddsa_compact_jws,
+)
+from entros_verify.errors import JwsVerificationError
+from entros_verify.jws import parse_and_validate_jws_header
 
 
 def _ed25519_jwk(priv: Ed25519PrivateKey, kid: str, *, status: str | None = None) -> dict[str, object]:
@@ -104,14 +110,16 @@ def test_jwks_cache_ttl_negative_cache_and_single_refresh() -> None:
     assert cache.get_key("kid-1").status == "found"
     assert fetch_count[0] == 1
 
-    # Unknown kid triggers exactly one refresh, then negative-caches for >= 10s.
+    # Unknown kid triggers exactly one refresh, then negative-caches and enforces global cooldown >= 10s.
     assert cache.get_key("missing-kid").status == "unknown"
     assert fetch_count[0] == 2
     now_holder[0] += 5.0
     assert cache.get_key("missing-kid").status == "unknown"
+    assert cache.get_key("other-unknown-within-cooldown").status == "unknown"
     assert fetch_count[0] == 2
 
-    # Key rotation: after negative cache expires, unknown kid refreshes and resolves kid-2.
+    # Key rotation: after >= 10s cooldown expires, unknown kid refreshes and resolves kid-2.
+    now_holder[0] += 6.0
     active_keys.append(_ed25519_jwk(k2, "kid-2"))
     assert cache.get_key("kid-2").status == "found"
     assert fetch_count[0] == 3
@@ -120,6 +128,7 @@ def test_jwks_cache_ttl_negative_cache_and_single_refresh() -> None:
     now_holder[0] += 301.0
     assert cache.get_key("kid-2").status == "found"
     assert fetch_count[0] == 4
+    cache.close()
 
 
 def test_jwks_cache_validates_bounds_and_handles_unavailable() -> None:
@@ -369,3 +378,134 @@ async def test_caller_revoked_kids_enforced_for_static_provider_and_jwks_cache()
             )
 
     assert fetch_count[0] == 0
+
+
+async def test_jwks_global_cooldown_negative_cache_cap_and_async_single_flight() -> None:
+    k1 = Ed25519PrivateKey.generate()
+    jwks_doc: dict[str, object] = {"keys": [_ed25519_jwk(k1, "kid-1")]}
+    fetch_count = [0]
+
+    class _SlowAsyncTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            fetch_count[0] += 1
+            await asyncio.sleep(0.02)
+            return httpx.Response(200, json=jwks_doc)
+
+    async with JwksCache(
+        "https://api.entros.io/.well-known/jwks.json",
+        ttl_seconds=300.0,
+        negative_cache_seconds=10.0,
+        clock=lambda: 5000.0,
+        async_transport=_SlowAsyncTransport(),
+    ) as cache:
+        # 16 concurrent cold lookups coalesce into exactly 1 origin fetch.
+        results = await asyncio.gather(*(cache.get_key_async("kid-1") for _ in range(16)))
+        assert all(r.status == "found" for r in results)
+        assert fetch_count[0] == 1
+
+        # 4500 random unknown kids within cooldown must hit origin 0 extra times and bound negative cache.
+        for i in range(4500):
+            r = await cache.get_key_async(f"random-attacker-kid-{i}")
+            assert r.status == "unknown"
+        assert fetch_count[0] == 1
+        assert len(cache._negative_cache) <= 4096
+
+
+def test_jws_deeply_nested_json_returns_invalid_jws_without_recursion_error() -> None:
+    header_b64 = b64url_encode_nopad(
+        b'{"alg":"EdDSA","typ":"entros-agent-permit+jwt","kid":"k1"}'
+    )
+    deep_payload = ("[" * 2500 + "1" + "]" * 2500).encode("ascii")
+    payload_b64 = b64url_encode_nopad(deep_payload)
+    sig_b64 = b64url_encode_nopad(bytes(64))
+    token = f"{header_b64}.{payload_b64}.{sig_b64}"
+
+    with pytest.raises(JwsVerificationError) as exc_info:
+        parse_and_validate_jws_header(token, expected_typ=AGENT_PERMIT_TYP)
+    assert exc_info.value.code == RefusalCode.INVALID_JWS.value
+
+
+def test_jws_rejects_lone_utf16_surrogate_in_json() -> None:
+    header_b64 = b64url_encode_nopad(
+        b'{"alg":"EdDSA","typ":"entros-agent-permit+jwt","kid":"k1"}'
+    )
+    surrogate_payload = b'{"sub":"bad-\\ud800-surrogate"}'
+    token = f"{header_b64}.{b64url_encode_nopad(surrogate_payload)}.{b64url_encode_nopad(bytes(64))}"
+    with pytest.raises(JwsVerificationError) as exc_info:
+        parse_and_validate_jws_header(token, expected_typ=AGENT_PERMIT_TYP)
+    assert exc_info.value.code == RefusalCode.INVALID_JWS.value
+
+
+async def test_jwks_cache_stale_key_fix_no_starvation_revoked_dup_and_async_error_coalescing() -> None:
+    k1 = Ed25519PrivateKey.generate()
+    k2 = Ed25519PrivateKey.generate()
+    now = [1000.0]
+    fetches = [0]
+    fail_mode = [False]
+    active_keys: list[dict[str, object]] = [
+        _ed25519_jwk(k1, "dup-rev", status="revoked"),
+        _ed25519_jwk(k1, "dup-rev"),
+        _ed25519_jwk(k1, "kid-1"),
+    ]
+
+    def _sync_handler(request: httpx.Request) -> httpx.Response:
+        fetches[0] += 1
+        if fail_mode[0]:
+            return httpx.Response(503, text="upstream down")
+        return httpx.Response(200, json={"keys": list(active_keys)})
+
+    cache = JwksCache(
+        "https://api.entros.io/.well-known/jwks.json",
+        ttl_seconds=300.0,
+        negative_cache_seconds=10.0,
+        clock=lambda: now[0],
+        sync_transport=httpx.MockTransport(_sync_handler),
+    )
+
+    # Duplicate kid preserves revoked=True even when later duplicate lacks status.
+    assert cache.get_key("dup-rev").status == "revoked"
+    assert cache.get_key("kid-1").status == "found"
+    assert fetches[0] == 1
+
+    # Unknown kid triggers one refresh and negative-caches at t=1015.
+    now[0] += 15.0
+    assert cache.get_key("rotated-k2").status == "unknown"
+    assert fetches[0] == 2
+
+    # Repeated cooldown hits must NOT extend negative-cache expiry (no starvation).
+    active_keys.append(_ed25519_jwk(k2, "rotated-k2"))
+    now[0] += 5.0
+    assert cache.get_key("rotated-k2").status == "unknown"
+    now[0] += 4.0
+    assert cache.get_key("rotated-k2").status == "unknown"
+    assert fetches[0] == 2
+    now[0] += 2.0
+    assert cache.get_key("rotated-k2").status == "found"
+    assert fetches[0] == 3
+
+    # After TTL expiry, failed refresh MUST raise JwksUnavailableError instead of returning stale key!
+    now[0] += 305.0
+    fail_mode[0] = True
+    with pytest.raises(JwksUnavailableError):
+        cache.get_key("kid-1")
+    cache.close()
+
+    # Concurrent get_key_async waiters coalesce 503 failure into 1 origin fetch (no sequential storm).
+    async_fetches = [0]
+
+    class _SlowFailingAsyncTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            async_fetches[0] += 1
+            await asyncio.sleep(0.02)
+            return httpx.Response(503, text="down")
+
+    async with JwksCache(
+        "https://api.entros.io/.well-known/jwks.json",
+        async_transport=_SlowFailingAsyncTransport(),
+    ) as async_cache:
+        results = await asyncio.gather(
+            *(async_cache.get_key_async("kid-1") for _ in range(12)),
+            return_exceptions=True,
+        )
+        assert all(isinstance(r, JwksUnavailableError) for r in results)
+        assert async_fetches[0] == 1

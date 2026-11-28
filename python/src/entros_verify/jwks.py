@@ -2,13 +2,15 @@
 
 Enforces:
 - Maximum positive cache TTL of 300 seconds.
-- Minimum negative-cache floor of 10 seconds to prevent origin flooding.
-- At most one refresh on an unknown kid when negative cache allows.
+- Minimum negative-cache and global refresh cooldown floor of 10 seconds to prevent origin flooding.
+- Single-flight deduplication across concurrent sync threads and async tasks.
+- Bounded negative cache size (4,096 entries max) with expiry pruning.
 - Explicit rejection of revoked keys (JWKS status="revoked" or local revocation set).
 """
 
 from __future__ import annotations
 
+import asyncio
 import threading
 import time
 from collections.abc import Awaitable, Callable, Mapping
@@ -24,6 +26,7 @@ from entros_verify.uri import is_canonical_uri
 
 MAX_JWKS_CACHE_TTL_SECONDS = 300.0
 MIN_NEGATIVE_CACHE_SECONDS = 10.0
+MAX_NEGATIVE_CACHE_ENTRIES = 4_096
 
 
 @dataclass(frozen=True)
@@ -79,7 +82,10 @@ def parse_jwks_document(jwks: Mapping[str, object]) -> dict[str, JwkEd25519Key]:
             continue
         if len(pub_bytes) != 32:
             continue
-        revoked = entry.get("status") == "revoked"
+        existing = parsed.get(kid)
+        revoked = (entry.get("status") == "revoked") or (
+            existing is not None and existing.revoked
+        )
         parsed[kid] = JwkEd25519Key(kid=kid, public_key_bytes=pub_bytes, revoked=revoked)
     return parsed
 
@@ -154,8 +160,14 @@ class StaticJwksProvider:
         return self.get_key(kid)
 
 
+@dataclass
+class _SyncInflightRefresh:
+    event: threading.Event
+    error: Exception | None = None
+
+
 class JwksCache:
-    """Synchronous and asynchronous JWKS cache with bounded TTL and negative-cache floor."""
+    """Synchronous and asynchronous JWKS cache with bounded TTL, cooldown, and pooled HTTP."""
 
     def __init__(
         self,
@@ -185,13 +197,75 @@ class JwksCache:
         self._sync_transport = sync_transport
         self._async_transport = async_transport
 
+        self._sync_client: httpx.Client | None = None
+        self._async_client: httpx.AsyncClient | None = None
+
         self._lock = threading.Lock()
+        self._sync_inflight: _SyncInflightRefresh | None = None
+        self._async_inflight_loop: asyncio.AbstractEventLoop | None = None
+        self._async_inflight: asyncio.Future[None] | None = None
+
         self._keys: dict[str, JwkEd25519Key] = {}
         self._loaded_at: float | None = None
+        self._last_refresh_attempt_at: float | None = None
         self._negative_cache: dict[str, float] = {}
+
+    def close(self) -> None:
+        """Close the pooled synchronous HTTP client if initialized."""
+        with self._lock:
+            client = self._sync_client
+            self._sync_client = None
+        if client is not None:
+            client.close()
+
+    async def aclose(self) -> None:
+        """Close the pooled asynchronous HTTP client if initialized."""
+        with self._lock:
+            client = self._async_client
+            self._async_client = None
+        if client is not None:
+            await client.aclose()
+
+    def __enter__(self) -> JwksCache:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self.close()
+
+    async def __aenter__(self) -> JwksCache:
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
+        await self.aclose()
+
+    def _get_sync_client(self) -> httpx.Client:
+        with self._lock:
+            if self._sync_client is None:
+                self._sync_client = httpx.Client(
+                    timeout=self._timeout_seconds,
+                    transport=self._sync_transport,
+                )
+            return self._sync_client
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        with self._lock:
+            if self._async_client is None:
+                self._async_client = httpx.AsyncClient(
+                    timeout=self._timeout_seconds,
+                    transport=self._async_transport,
+                )
+            return self._async_client
 
     def _is_expired(self, now: float) -> bool:
         return self._loaded_at is None or (now - self._loaded_at) >= self._ttl_seconds
+
+    def _can_refresh_for_unknown(self, kid: str, now: float) -> bool:
+        if self._is_negatively_cached(kid, now):
+            return False
+        return (
+            self._last_refresh_attempt_at is None
+            or (now - self._last_refresh_attempt_at) >= self._negative_cache_seconds
+        )
 
     def _lookup_cached(self, kid: str) -> KeyLookupResult | None:
         if kid in self._revoked_kids:
@@ -212,6 +286,21 @@ class JwksCache:
         self._negative_cache.pop(kid, None)
         return False
 
+    def _record_negative_cache(self, kid: str, now: float) -> None:
+        # Insertion order follows monotonic expiry timestamps, so stop at the first live entry.
+        while self._negative_cache:
+            oldest_kid, oldest_exp = next(iter(self._negative_cache.items()))
+            if now >= oldest_exp:
+                del self._negative_cache[oldest_kid]
+            else:
+                break
+        if kid in self._negative_cache:
+            del self._negative_cache[kid]
+        elif len(self._negative_cache) >= MAX_NEGATIVE_CACHE_ENTRIES:
+            oldest = next(iter(self._negative_cache))
+            del self._negative_cache[oldest]
+        self._negative_cache[kid] = now + self._negative_cache_seconds
+
     def _apply_jwks(self, jwks: Mapping[str, object], now: float) -> None:
         parsed = parse_jwks_document(jwks)
         self._keys = parsed
@@ -221,13 +310,10 @@ class JwksCache:
 
     def _fetch_sync(self) -> Mapping[str, object]:
         try:
-            with httpx.Client(
-                timeout=self._timeout_seconds,
-                transport=self._sync_transport,
-            ) as client:
-                response = client.get(self._jwks_url)
-                response.raise_for_status()
-                data: object = response.json()
+            client = self._get_sync_client()
+            response = client.get(self._jwks_url)
+            response.raise_for_status()
+            data: object = response.json()
         except Exception as exc:
             raise JwksUnavailableError(f"Failed to fetch JWKS: {exc}") from exc
         if not isinstance(data, Mapping):
@@ -236,13 +322,10 @@ class JwksCache:
 
     async def _fetch_async(self) -> Mapping[str, object]:
         try:
-            async with httpx.AsyncClient(
-                timeout=self._timeout_seconds,
-                transport=self._async_transport,
-            ) as client:
-                response = await client.get(self._jwks_url)
-                response.raise_for_status()
-                data: object = response.json()
+            client = self._get_async_client()
+            response = await client.get(self._jwks_url)
+            response.raise_for_status()
+            data: object = response.json()
         except Exception as exc:
             raise JwksUnavailableError(f"Failed to fetch JWKS: {exc}") from exc
         if not isinstance(data, Mapping):
@@ -250,48 +333,127 @@ class JwksCache:
         return data
 
     def get_key(self, kid: str) -> KeyLookupResult:
-        """Resolve kid synchronously, refreshing at most once on cache miss."""
-        now = self._clock()
-        with self._lock:
-            if kid in self._revoked_kids:
-                return KeyLookupResult(status="revoked")
-            if not self._is_expired(now):
-                cached = self._lookup_cached(kid)
-                if cached is not None:
-                    return cached
-                if self._is_negatively_cached(kid, now):
-                    return KeyLookupResult(status="unknown")
+        """Resolve kid synchronously with single-flight deduplication and refresh cooldown."""
+        while True:
+            now = self._clock()
+            wait_flight: _SyncInflightRefresh | None = None
+            leader_flight: _SyncInflightRefresh | None = None
+            with self._lock:
+                if kid in self._revoked_kids:
+                    return KeyLookupResult(status="revoked")
+                expired = self._is_expired(now)
+                if not expired:
+                    cached = self._lookup_cached(kid)
+                    if cached is not None:
+                        return cached
+                    if not self._can_refresh_for_unknown(kid, now):
+                        return KeyLookupResult(status="unknown")
 
-        # Single refresh on expired cache or non-negative-cached unknown kid.
-        jwks = self._fetch_sync()
-        refreshed_now = self._clock()
-        with self._lock:
-            self._apply_jwks(jwks, refreshed_now)
-            cached = self._lookup_cached(kid)
-            if cached is not None:
-                return cached
-            self._negative_cache[kid] = refreshed_now + self._negative_cache_seconds
-            return KeyLookupResult(status="unknown")
+                if self._sync_inflight is not None:
+                    wait_flight = self._sync_inflight
+                else:
+                    self._last_refresh_attempt_at = now
+                    leader_flight = _SyncInflightRefresh(event=threading.Event())
+                    self._sync_inflight = leader_flight
+
+            if wait_flight is not None:
+                wait_flight.event.wait()
+                if wait_flight.error is not None:
+                    raise wait_flight.error
+                with self._lock:
+                    after_now = self._clock()
+                    if not self._is_expired(after_now):
+                        cached = self._lookup_cached(kid)
+                        if cached is not None:
+                            return cached
+                        if not self._can_refresh_for_unknown(kid, after_now):
+                            return KeyLookupResult(status="unknown")
+                continue
+
+            assert leader_flight is not None
+            try:
+                jwks = self._fetch_sync()
+                refreshed_now = self._clock()
+                with self._lock:
+                    self._apply_jwks(jwks, refreshed_now)
+                    cached = self._lookup_cached(kid)
+                    if cached is not None:
+                        return cached
+                    self._record_negative_cache(kid, refreshed_now)
+                    return KeyLookupResult(status="unknown")
+            except Exception as exc:
+                leader_flight.error = exc
+                raise
+            finally:
+                with self._lock:
+                    if self._sync_inflight is leader_flight:
+                        self._sync_inflight = None
+                leader_flight.event.set()
 
     async def get_key_async(self, kid: str) -> KeyLookupResult:
-        """Resolve kid asynchronously, refreshing at most once on cache miss."""
-        now = self._clock()
-        with self._lock:
-            if kid in self._revoked_kids:
-                return KeyLookupResult(status="revoked")
-            if not self._is_expired(now):
-                cached = self._lookup_cached(kid)
-                if cached is not None:
-                    return cached
-                if self._is_negatively_cached(kid, now):
-                    return KeyLookupResult(status="unknown")
+        """Resolve kid asynchronously with single-flight Future coalescing."""
+        loop = asyncio.get_running_loop()
+        while True:
+            now = self._clock()
+            wait_future: asyncio.Future[None] | None = None
+            leader_future: asyncio.Future[None] | None = None
+            with self._lock:
+                if kid in self._revoked_kids:
+                    return KeyLookupResult(status="revoked")
+                expired = self._is_expired(now)
+                if not expired:
+                    cached = self._lookup_cached(kid)
+                    if cached is not None:
+                        return cached
+                    if not self._can_refresh_for_unknown(kid, now):
+                        return KeyLookupResult(status="unknown")
 
-        jwks = await self._fetch_async()
-        refreshed_now = self._clock()
-        with self._lock:
-            self._apply_jwks(jwks, refreshed_now)
-            cached = self._lookup_cached(kid)
-            if cached is not None:
-                return cached
-            self._negative_cache[kid] = refreshed_now + self._negative_cache_seconds
-            return KeyLookupResult(status="unknown")
+                if (
+                    self._async_inflight is not None
+                    and not self._async_inflight.done()
+                    and self._async_inflight_loop is loop
+                ):
+                    wait_future = self._async_inflight
+                else:
+                    self._last_refresh_attempt_at = now
+                    leader_future = loop.create_future()
+                    self._async_inflight = leader_future
+                    self._async_inflight_loop = loop
+
+            if wait_future is not None:
+                await asyncio.shield(wait_future)
+                with self._lock:
+                    after_now = self._clock()
+                    if not self._is_expired(after_now):
+                        cached = self._lookup_cached(kid)
+                        if cached is not None:
+                            return cached
+                        if not self._can_refresh_for_unknown(kid, after_now):
+                            return KeyLookupResult(status="unknown")
+                continue
+
+            assert leader_future is not None
+            try:
+                jwks = await self._fetch_async()
+                refreshed_now = self._clock()
+                with self._lock:
+                    self._apply_jwks(jwks, refreshed_now)
+                    cached = self._lookup_cached(kid)
+                    if cached is None:
+                        self._record_negative_cache(kid, refreshed_now)
+                if not leader_future.done():
+                    leader_future.set_result(None)
+                return cached if cached is not None else KeyLookupResult(status="unknown")
+            except BaseException as exc:
+                if not leader_future.done():
+                    if isinstance(exc, Exception):
+                        leader_future.set_exception(exc)
+                        leader_future.exception()
+                    else:
+                        leader_future.cancel()
+                raise
+            finally:
+                with self._lock:
+                    if self._async_inflight is leader_future:
+                        self._async_inflight = None
+                        self._async_inflight_loop = None

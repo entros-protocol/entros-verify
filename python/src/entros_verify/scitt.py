@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping
+from typing import Literal
 
 import cbor2
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -21,17 +23,36 @@ from pydantic import ValidationError
 
 from entros_verify.canonical import canonicalize_jcs_bytes
 from entros_verify.jwks import JwksKeySource, as_jwks_source
-from entros_verify.jws import b64url_decode_nopad, b64url_encode_nopad, verify_ed25519_strict
-from entros_verify.models import ScittDecisionPayload, ScittReceiptResult
+from entros_verify.jws import (
+    _parse_json_object_strict,
+    b64url_decode_nopad,
+    b64url_encode_nopad,
+    verify_ed25519_strict,
+)
+from entros_verify.models import (
+    MAX_TIMESTAMP_SECONDS,
+    MIN_TIMESTAMP_SECONDS,
+    ScittDecisionPayload,
+    ScittReceiptResult,
+)
+from entros_verify.uri import is_canonical_audience_uri
 
 COSE_SIGN1_TAG = 18
 COSE_HEADER_ALG = 1
+COSE_HEADER_CRIT = 2
 COSE_HEADER_KID = 4
 COSE_HEADER_VDS = 395
 COSE_HEADER_VDP = 396
 COSE_ALG_EDDSA = -8
 VDS_RFC9162_SHA256 = 1
 VDP_INCLUSION_PROOF_KEY = -1
+
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_ZERO_HEX64 = "0" * 64
+
+
+MAX_CBOR_DEPTH = 16
+MAX_CBOR_CONTAINER_LEN = 1024
 
 
 class ScittVerificationError(Exception):
@@ -40,7 +61,7 @@ class ScittVerificationError(Exception):
 
 def _validate_definite_cbor_item(data: bytes, offset: int, depth: int = 0) -> int:
     """Walk one CBOR item verifying definite-length encoding; return next byte offset."""
-    if depth > 64:
+    if depth > MAX_CBOR_DEPTH:
         raise ScittVerificationError("CBOR nesting exceeds limit")
     if offset >= len(data):
         raise ScittVerificationError("Truncated CBOR input")
@@ -78,7 +99,7 @@ def _validate_definite_cbor_item(data: bytes, offset: int, depth: int = 0) -> in
     else:
         raise ScittVerificationError(f"Reserved CBOR additional info: {ai}")
 
-    if major in (0, 1, 7):
+    if major in (0, 1):
         return offset
     if major in (2, 3):
         end = offset + arg
@@ -86,12 +107,29 @@ def _validate_definite_cbor_item(data: bytes, offset: int, depth: int = 0) -> in
             raise ScittVerificationError("Truncated CBOR byte/text string")
         return end
     if major == 4:
+        if arg > MAX_CBOR_CONTAINER_LEN:
+            raise ScittVerificationError("CBOR array exceeds safe element cap")
         for _ in range(arg):
             offset = _validate_definite_cbor_item(data, offset, depth + 1)
         return offset
     if major == 5:
+        if arg > MAX_CBOR_CONTAINER_LEN:
+            raise ScittVerificationError("CBOR map exceeds safe entry cap")
+        seen_keys: set[tuple[type[object], object]] = set()
         for _ in range(arg):
+            key_start = offset
             offset = _validate_definite_cbor_item(data, offset, depth + 1)
+            key_slice = data[key_start:offset]
+            try:
+                decoded_key: object = cbor2.loads(key_slice)
+                key_sig = (type(decoded_key), decoded_key)
+                if key_sig in seen_keys:
+                    raise ScittVerificationError("Duplicate CBOR map key")
+                seen_keys.add(key_sig)
+            except ScittVerificationError:
+                raise
+            except Exception as exc:
+                raise ScittVerificationError("Invalid or non-scalar CBOR map key") from exc
             offset = _validate_definite_cbor_item(data, offset, depth + 1)
         return offset
     if major == 6:
@@ -204,6 +242,11 @@ def _parse_and_validate_receipt_parts(
     if not isinstance(protected_map, dict):
         raise ScittVerificationError("Protected header must be a CBOR map")
 
+    if COSE_HEADER_CRIT in protected_map:
+        raise ScittVerificationError("Protected header contains unsupported crit (2) header")
+    if COSE_HEADER_CRIT in unprotected_map:
+        raise ScittVerificationError("Unprotected header contains forbidden crit (2) header")
+
     alg = protected_map.get(COSE_HEADER_ALG)
     if alg != COSE_ALG_EDDSA or isinstance(alg, bool):
         raise ScittVerificationError("Protected header alg (1) must equal -8 (EdDSA)")
@@ -215,6 +258,8 @@ def _parse_and_validate_receipt_parts(
         kid = kid_raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ScittVerificationError("Protected header kid (4) must be valid UTF-8") from exc
+    if not kid.strip():
+        raise ScittVerificationError("Protected header kid (4) must be non-blank UTF-8")
 
     vds = protected_map.get(COSE_HEADER_VDS)
     if vds != VDS_RFC9162_SHA256 or isinstance(vds, bool):
@@ -252,13 +297,40 @@ def _parse_and_validate_receipt_parts(
     )
 
     try:
-        payload_obj: object = json.loads(payload_bstr.decode("utf-8"))
+        payload_obj = _parse_json_object_strict(payload_bstr)
         payload = ScittDecisionPayload.model_validate(payload_obj)
-    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError, ValidationError, RecursionError) as exc:
         raise ScittVerificationError(f"Invalid SCITT payload JSON: {exc}") from exc
+
+    _validate_scitt_payload_formats(payload)
 
     sig_structure = build_cose_sig_structure(protected_bstr, merkle_root)
     return kid, vds, tree_size, leaf_index, merkle_root, sig_structure, signature_bstr, payload
+
+
+def _validate_scitt_payload_formats(payload: ScittDecisionPayload) -> None:
+    if not (_HEX64_RE.match(payload.jti) and payload.jti != _ZERO_HEX64):
+        raise ScittVerificationError("SCITT payload jti must be non-zero 64 lowercase hex")
+    if not (_HEX64_RE.match(payload.request_digest) and payload.request_digest != _ZERO_HEX64):
+        raise ScittVerificationError(
+            "SCITT payload request_digest must be non-zero 64 lowercase hex"
+        )
+    if not payload.policy_id or len(payload.policy_id) > 128 or not all(
+        0x20 <= ord(ch) <= 0x7E for ch in payload.policy_id
+    ):
+        raise ScittVerificationError("SCITT payload policy_id must be printable ASCII (1..128)")
+    if not is_canonical_audience_uri(payload.aud):
+        raise ScittVerificationError("SCITT payload aud failed canonical RFC 8707 grammar")
+    if not payload.reason:
+        raise ScittVerificationError("SCITT payload reason must be non-empty")
+    if not payload.modality or any(not m for m in payload.modality):
+        raise ScittVerificationError("SCITT payload modality must be a non-empty list of strings")
+    if not (MIN_TIMESTAMP_SECONDS <= payload.freshness_verified_at <= MAX_TIMESTAMP_SECONDS):
+        raise ScittVerificationError("SCITT payload freshness_verified_at out of valid bounds")
+    if not (MIN_TIMESTAMP_SECONDS <= payload.evaluated_at <= MAX_TIMESTAMP_SECONDS):
+        raise ScittVerificationError("SCITT payload evaluated_at out of valid bounds")
+    if payload.model_version is not None and not _HEX64_RE.match(payload.model_version):
+        raise ScittVerificationError("SCITT payload model_version must be null or 64 lowercase hex")
 
 
 def verify_scitt_receipt(
@@ -266,6 +338,8 @@ def verify_scitt_receipt(
     *,
     jwks: JwksKeySource | Mapping[str, object],
     revoked_kids: set[str] | frozenset[str] | None = None,
+    expected_jti: str | None = None,
+    expected_decision: Literal["allow", "deny"] | None = None,
 ) -> ScittReceiptResult:
     """Synchronously verify an IETF SCITT COSE_Sign1 receipt and its Merkle inclusion proof."""
     (
@@ -278,6 +352,11 @@ def verify_scitt_receipt(
         signature_bstr,
         payload,
     ) = _parse_and_validate_receipt_parts(receipt)
+
+    if expected_jti is not None and payload.jti != expected_jti:
+        raise ScittVerificationError("SCITT receipt jti does not match expected_jti")
+    if expected_decision is not None and payload.decision != expected_decision:
+        raise ScittVerificationError("SCITT receipt decision does not match expected_decision")
 
     source = as_jwks_source(jwks, revoked_kids=revoked_kids)
     lookup = source.get_key(kid)
@@ -302,6 +381,8 @@ async def verify_scitt_receipt_async(
     *,
     jwks: JwksKeySource | Mapping[str, object],
     revoked_kids: set[str] | frozenset[str] | None = None,
+    expected_jti: str | None = None,
+    expected_decision: Literal["allow", "deny"] | None = None,
 ) -> ScittReceiptResult:
     """Asynchronously verify an IETF SCITT COSE_Sign1 receipt and its Merkle inclusion proof."""
     (
@@ -314,6 +395,11 @@ async def verify_scitt_receipt_async(
         signature_bstr,
         payload,
     ) = _parse_and_validate_receipt_parts(receipt)
+
+    if expected_jti is not None and payload.jti != expected_jti:
+        raise ScittVerificationError("SCITT receipt jti does not match expected_jti")
+    if expected_decision is not None and payload.decision != expected_decision:
+        raise ScittVerificationError("SCITT receipt decision does not match expected_decision")
 
     source = as_jwks_source(jwks, revoked_kids=revoked_kids)
     lookup = await source.get_key_async(kid)

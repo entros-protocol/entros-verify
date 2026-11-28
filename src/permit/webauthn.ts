@@ -256,11 +256,10 @@ export function verifyWebAuthnAssertionV2(
     return failInvalid("Cross-origin WebAuthn assertion is not allowed");
   }
 
-  // Reject signCount rollback when both stored and presented counts are non-zero.
+  // Reject signCount rollback whenever storedSignCount > 0 (including rollback to 0).
   if (
     options.storedSignCount !== undefined &&
     options.storedSignCount > 0 &&
-    parsedAuth.signCount > 0 &&
     parsedAuth.signCount <= options.storedSignCount
   ) {
     return failInvalid("WebAuthn signCount rollback detected");

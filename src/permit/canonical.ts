@@ -25,6 +25,16 @@ const ALLOWED_ACTION_KINDS: ReadonlySet<string> = new Set<ActionKindV2>([
   "http.action",
 ]);
 
+const ALLOWED_ACTION_KEYS: ReadonlySet<string> = new Set([
+  "kind",
+  "server",
+  "tool",
+  "arguments",
+  "rar_details",
+]);
+
+const JSON_NUMBER_RE = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
+
 export type CanonicalJsonErrorCode =
   | "invalid_surrogate"
   | "non_finite_number"
@@ -251,7 +261,15 @@ export function parseStrictJson(text: string): unknown {
       }
       if (c === 0x22) {
         cursor += 1;
-        const parsed = JSON.parse(text.slice(start, cursor)) as string;
+        let parsed: string;
+        try {
+          parsed = JSON.parse(text.slice(start, cursor)) as string;
+        } catch {
+          throw new CanonicalJsonError(
+            "unsupported_value",
+            "Invalid escape sequence in JSON string",
+          );
+        }
         serializeJcsString(parsed); // verifies no lone surrogates
         return parsed;
       }
@@ -302,7 +320,12 @@ export function parseStrictJson(text: string): unknown {
           throw new CanonicalJsonError("unsupported_value", "Expected ':'");
         }
         cursor += 1;
-        obj[key] = parseValue(depth + 1);
+        Object.defineProperty(obj, key, {
+          value: parseValue(depth + 1),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
         skipWs();
         if (text[cursor] === "}") {
           cursor += 1;
@@ -348,9 +371,8 @@ export function parseStrictJson(text: string): unknown {
       cursor += 4;
       return null;
     }
-    const numMatch = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/.exec(
-      text.slice(cursor),
-    );
+    JSON_NUMBER_RE.lastIndex = cursor;
+    const numMatch = JSON_NUMBER_RE.exec(text);
     if (!numMatch) {
       throw new CanonicalJsonError("unsupported_value", "Invalid JSON token");
     }
@@ -397,15 +419,8 @@ export function validateActionV2(input: unknown): CanonicalActionV2Input {
   if (!isPlainRecord(input)) {
     throw new CanonicalJsonError("invalid_action", "Action must be a plain object");
   }
-  const allowedKeys = new Set([
-    "kind",
-    "server",
-    "tool",
-    "arguments",
-    "rar_details",
-  ]);
   for (const key of Object.keys(input)) {
-    if (!allowedKeys.has(key)) {
+    if (!ALLOWED_ACTION_KEYS.has(key)) {
       throw new CanonicalJsonError(
         "invalid_action",
         `Unexpected action property '${key}'`,

@@ -91,7 +91,6 @@ describe("scripts/check-licenses.mjs", () => {
     expect(report.checked.map((p: { name: string }) => p.name)).toEqual([
       "@noble/curves",
       "@noble/hashes",
-      "jose",
     ]);
   });
 

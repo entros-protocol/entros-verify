@@ -197,7 +197,7 @@ class Actor(StrictModel):
     id: str = Field(min_length=1, max_length=256)
     client_id: str | None = None
     key_jkt: str | None = None
-    act: Actor | None = None
+    act: JsonObject | None = None
 
 
 class Continuity(StrictModel):
@@ -252,7 +252,7 @@ class CanonicalAction(StrictModel):
 
 
 def _default_allowed_profiles() -> list[OperatingProfile]:
-    return ["webrtc_16k", "telephony_8k"]
+    return ["webrtc_16k", "telephony_8k", "wideband_clean"]
 
 
 def _default_allowed_verdicts() -> list[VoiceVerdictValue]:
@@ -264,10 +264,10 @@ class VoiceRules(StrictModel):
 
     allowed_profiles: list[OperatingProfile] = Field(default_factory=_default_allowed_profiles)
     allowed_verdicts: list[VoiceVerdictValue] = Field(default_factory=_default_allowed_verdicts)
-    min_calibrated_llr: float = 2.0
-    min_speech_ms: int = Field(default=1500, ge=0)
-    min_snr_db: float = 8.0
-    max_voice_age_seconds: int = Field(default=60, ge=1)
+    min_calibrated_llr: float | None = None
+    min_speech_ms: int | None = Field(default=None, ge=0)
+    min_snr_db: float | None = None
+    max_voice_age_seconds: int | None = Field(default=None, ge=1)
     max_partial_spoof_spans: int = Field(default=0, ge=0)
     max_partial_spoof_probability: float | None = Field(default=None, ge=0.0, le=1.0)
     reject_on_abstain: bool = True

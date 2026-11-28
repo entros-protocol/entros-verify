@@ -35,31 +35,20 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "cryptography==50.0.2",
-  "pydantic==2.14.4",
-  "jcs==0.3.0",
-  "PyJWT==2.15.1",
-  "joserfc==1.8.0",
+  "cryptography>=44.0,<52.0",
+  "pydantic>=2.10,<3.0",
+  "jcs>=0.3.0,<1.0",
   "httpx>=0.28,<1.0",
   "websockets>=14.0,<16.0",
   "cbor2>=5.6,<6.0",
 ]
 
 [project.optional-dependencies]
-livekit = [
-  "livekit-agents>=1.0",
-]
-pipecat = [
-  "pipecat-ai>=0.0.60",
-]
 langgraph = [
   "langgraph>=0.4",
 ]
 mcp = [
-  "mcp==2.3.0",
-]
-webauthn = [
-  "webauthn>=2.0",
+  "mcp>=2.0,<3.0",
 ]
 dev = [
   "pytest>=8.0",

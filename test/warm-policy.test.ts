@@ -150,6 +150,7 @@ describe("evaluateWarmPolicyReuse", () => {
       nowSeconds: NOW,
     });
     expect(staleResult.status).toBe("needs_capture");
+    if (staleResult.status !== "needs_capture") throw new Error("expected needs_capture");
     expect(staleResult.reason).toBe("verification_stale");
     expect(staleResult.policy?.decision).toBe("deny");
 
@@ -163,6 +164,7 @@ describe("evaluateWarmPolicyReuse", () => {
       nowSeconds: NOW,
     });
     expect(floorResult.status).toBe("needs_capture");
+    if (floorResult.status !== "needs_capture") throw new Error("expected needs_capture");
     expect(floorResult.reason).toBe("score_below_minimum");
     expect(floorResult.policy?.decision).toBe("deny");
   });
@@ -184,6 +186,7 @@ describe("evaluateWarmPolicyReuse", () => {
       nowSeconds: NOW,
     });
     expect(postReset.status).toBe("needs_capture");
+    if (postReset.status !== "needs_capture") throw new Error("expected needs_capture");
     expect(postReset.reason).toBe("invalid_evidence");
 
     const rebaseline = await evaluateWarmPolicyReuse({
@@ -246,6 +249,7 @@ describe("evaluateWarmPolicyReuse", () => {
       nowSeconds: NOW,
     });
     expect(denied.status).toBe("needs_capture");
+    if (denied.status !== "needs_capture") throw new Error("expected needs_capture");
     expect(denied.reason).toBe("attestation_required");
 
     const presentAttestation = makeAgedEvidence(NOW - 30, {
@@ -371,6 +375,7 @@ describe("evaluateWarmPolicyReuse", () => {
       nowSeconds: () => clock,
     });
     expect(expired.status).toBe("needs_capture");
+    if (expired.status !== "needs_capture") throw new Error("expected needs_capture");
     expect(expired.reason).toBe("verification_stale");
   });
 

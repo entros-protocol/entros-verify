@@ -32,11 +32,18 @@ from entros_verify.nonce_store import PermitNonceStoreV2
 from entros_verify.policy import verify_agent_permit_v2_async
 from entros_verify.voice import (
     VoiceAnalyzeResponse,
-    VoiceCodec,
+    VoiceStreamCodec,
     verify_voice_liveness_verdict_async,
 )
 
 LiveKitStepUpMode = Literal["sep_1036", "oidc_ciba"]
+DEFAULT_MAX_SESSIONS = 10_000
+_VERDICT_SEVERITY: dict[str, int] = {
+    "likely_human": 0,
+    "insufficient_signal": 1,
+    "suspicious": 2,
+    "likely_synthetic": 3,
+}
 
 
 @runtime_checkable
@@ -80,6 +87,8 @@ class VoiceStreamSinkProtocol(Protocol):
 
     async def finish_utterance(self) -> None: ...
 
+    async def stop(self) -> None: ...
+
     def receive_verdicts(self) -> AsyncIterator[VoiceAnalyzeResponse]: ...
 
 
@@ -110,8 +119,17 @@ class EntrosVoiceGateBlocked(Exception):
 
 
 def _extract_raw_pcm(item: AudioFrameEventProtocol | AudioFrameProtocol) -> tuple[bytes, int]:
-    frame: AudioFrameProtocol = item.frame if isinstance(item, AudioFrameEventProtocol) else item
-    return bytes(frame.data), frame.sample_rate
+    nested: object = getattr(item, "frame", None)
+    target: object = nested if nested is not None else item
+    data = getattr(target, "data", None)
+    sample_rate = getattr(target, "sample_rate", None)
+    if (
+        not isinstance(data, (bytes, bytearray, memoryview))
+        or not isinstance(sample_rate, int)
+        or isinstance(sample_rate, bool)
+    ):
+        raise TypeError("Audio stream item missing valid PCM data or integer sample_rate")
+    return bytes(data), sample_rate
 
 
 class EntrosVoiceFirewall:
@@ -129,21 +147,39 @@ class EntrosVoiceFirewall:
         operating_profile: OperatingProfile = "webrtc_16k",
         stream_factory: Callable[[str], VoiceStreamSinkProtocol] | None = None,
         clock: Callable[[], int] | None = None,
+        max_sessions: int = DEFAULT_MAX_SESSIONS,
     ) -> None:
+        if max_sessions < 1:
+            raise ValueError("max_sessions must be >= 1")
         self._client = client
         self._jwks = jwks if jwks is not None else (client.jwks if client is not None else None)
         self._operating_profile = operating_profile
         self._stream_factory = stream_factory
         self._clock = clock or (lambda: int(time.time()))
+        self._max_sessions = max_sessions
         self._verdicts: dict[str, SessionVerdictRecord] = {}
 
     @property
     def client(self) -> AsyncEntrosClient | None:
         return self._client
 
+    def _evict_expired(self, now: int) -> None:
+        expired = [sid for sid, rec in self._verdicts.items() if now >= rec.verdict.exp]
+        for sid in expired:
+            self._verdicts.pop(sid, None)
+
     def get_latest_verdict(self, session_id: str) -> SessionVerdictRecord | None:
-        """Return the latest verified VoiceLivenessVerdict record for session_id."""
-        return self._verdicts.get(session_id)
+        """Return the latest non-expired verified VoiceLivenessVerdict record for session_id."""
+        now = self._clock()
+        rec = self._verdicts.get(session_id)
+        if rec is None:
+            return None
+        if now >= rec.verdict.exp:
+            self._verdicts.pop(session_id, None)
+            return None
+        # Refresh LRU order on active reads.
+        self._verdicts[session_id] = self._verdicts.pop(session_id)
+        return rec
 
     def clear_session(self, session_id: str) -> None:
         """Remove verdict metadata when a LiveKit room session closes."""
@@ -156,7 +192,11 @@ class EntrosVoiceFirewall:
         *,
         now_seconds: int | None = None,
     ) -> SessionVerdictRecord | None:
-        """Verify an incoming signed VoiceLivenessVerdict JWS offline and store it by session_id."""
+        """Verify an incoming signed VoiceLivenessVerdict JWS offline and store it by session_id.
+
+        Rejects out-of-order stale verdicts and same-second severity downgrades so an
+        older or weaker verdict cannot overwrite an active alert.
+        """
         if self._jwks is None:
             raise ValueError("jwks or client with jwks must be configured to verify verdicts")
         now = self._clock() if now_seconds is None else now_seconds
@@ -169,6 +209,35 @@ class EntrosVoiceFirewall:
             return None
         if res.verdict.session_id != session_id:
             return None
+
+        self._evict_expired(now)
+        existing = self._verdicts.get(session_id)
+        if existing is not None:
+            if res.verdict.iat < existing.verdict.iat:
+                return None
+            if (
+                res.verdict.iat == existing.verdict.iat
+                and _VERDICT_SEVERITY.get(res.verdict.verdict, 1)
+                < _VERDICT_SEVERITY.get(existing.verdict.verdict, 1)
+            ):
+                return None
+
+        if session_id in self._verdicts:
+            self._verdicts.pop(session_id, None)
+        elif len(self._verdicts) >= self._max_sessions:
+            # Prefer evicting the least-recently-used non-synthetic session first.
+            evict_sid = next(
+                (
+                    sid
+                    for sid, stored in self._verdicts.items()
+                    if stored.verdict.verdict != "likely_synthetic"
+                ),
+                None,
+            )
+            if evict_sid is None:
+                evict_sid = next(iter(self._verdicts))
+            self._verdicts.pop(evict_sid, None)
+
         record = SessionVerdictRecord(
             session_id=session_id,
             verdict_jws=verdict_jws,
@@ -183,7 +252,7 @@ class EntrosVoiceFirewall:
             return self._stream_factory(session_id)
         if self._client is None:
             raise ValueError("AsyncEntrosClient or stream_factory is required for live track streaming")
-        codec: VoiceCodec = "pcm16_8k" if self._operating_profile == "telephony_8k" else "pcm16_16k"
+        codec: VoiceStreamCodec = "pcm16_8k" if self._operating_profile == "telephony_8k" else "pcm16_16k"
         return self._client.stream_voice(
             session_id=session_id,
             codec=codec,
@@ -217,12 +286,16 @@ class EntrosVoiceFirewall:
             recv_task = asyncio.create_task(_recv_loop())
             try:
                 async for frame_item in audio_stream:
+                    if recv_task.done():
+                        break
                     raw_pcm, sample_rate = _extract_raw_pcm(frame_item)
                     if sample_rate <= 0:
                         raise ValueError("Audio frame sample_rate must be positive")
                     if raw_pcm:
                         await sink.send_audio(raw_pcm)
-                await sink.finish_utterance()
+                if not recv_task.done():
+                    await sink.finish_utterance()
+                    await sink.stop()
                 await recv_task
             finally:
                 if not recv_task.done():
@@ -244,6 +317,8 @@ def entros_voice_gate(
     server: str = "livekit-voice-agent",
     tool_name: str | None = None,
     step_up_mode: LiveKitStepUpMode = "sep_1036",
+    subject: str | None = None,
+    actor: Mapping[str, object] | None = None,
     require_registered_nonce: bool = False,
     raise_on_block: bool = False,
     clock: Callable[[], int] | None = None,
@@ -252,7 +327,8 @@ def entros_voice_gate(
 
     When no valid permit is attached and the active session verdict is suspicious,
     insufficient_signal, or missing, triggers SEP-1036 or OIDC CIBA Passkey step-up
-    instead of executing the privileged tool.
+    instead of executing the privileged tool. Enforces session continuity binding
+    between the presented permit and the active call session_id.
     """
     now_fn = clock or (lambda: int(time.time()))
 
@@ -271,6 +347,8 @@ def entros_voice_gate(
             if permit_raw is None:
                 permit_raw = call_kwargs.pop("permit_jws", None)
             permit_jws = permit_raw if isinstance(permit_raw, str) and permit_raw else None
+            call_sub_raw = call_kwargs.pop("entros_sub", None)
+            call_actor_raw = call_kwargs.pop("entros_actor", None)
 
             bound = sig.bind_partial(*args, **call_kwargs)
             bound.apply_defaults()
@@ -282,7 +360,6 @@ def entros_voice_gate(
             }
             now = now_fn()
 
-            # Check active voice verdict if firewall is attached and no permit was supplied yet.
             latest = firewall.get_latest_verdict(session_id) if (firewall and session_id) else None
             if permit_jws is None:
                 verdict_val = latest.verdict.verdict if latest is not None else "insufficient_signal"
@@ -295,18 +372,67 @@ def entros_voice_gate(
                         "step_up_required": False,
                     }
 
-                # Trigger SEP-1036 or OIDC CIBA Passkey step-up on suspicious/insufficient_signal
-                # or whenever policy requires an AgentPermit v2 not yet presented.
+                if latest is not None:
+                    voice_rules = policy.voice_rules
+                    max_spans = voice_rules.max_partial_spoof_spans if voice_rules is not None else 0
+                    max_prob = (
+                        voice_rules.max_partial_spoof_probability
+                        if voice_rules is not None
+                        else None
+                    )
+                    reject_drift = (
+                        voice_rules.reject_on_consistency_drift if voice_rules is not None else True
+                    )
+                    if len(latest.verdict.partial_spoof_spans) > max_spans or (
+                        max_prob is not None
+                        and any(
+                            span.spoof_probability > max_prob
+                            for span in latest.verdict.partial_spoof_spans
+                        )
+                    ):
+                        if raise_on_block:
+                            raise EntrosVoiceGateBlocked(
+                                reason=RefusalCode.PARTIAL_SPOOF_DETECTED.value
+                            )
+                        return {
+                            "decision": "deny",
+                            "reason": RefusalCode.PARTIAL_SPOOF_DETECTED.value,
+                            "step_up_required": False,
+                        }
+                    if reject_drift and latest.verdict.consistency_drift.status == "elevated":
+                        if raise_on_block:
+                            raise EntrosVoiceGateBlocked(
+                                reason=RefusalCode.CONSISTENCY_DRIFT_EXCEEDED.value
+                            )
+                        return {
+                            "decision": "deny",
+                            "reason": RefusalCode.CONSISTENCY_DRIFT_EXCEEDED.value,
+                            "step_up_required": False,
+                        }
+
                 active_client = client or (firewall.client if firewall else None)
                 step_up_resp: StepUpChallengeResponse | None = None
+                effective_sub = (
+                    call_sub_raw
+                    if isinstance(call_sub_raw, str) and call_sub_raw
+                    else (subject or (f"session:{session_id}" if session_id else "anonymous"))
+                )
+                effective_actor: Mapping[str, object] = (
+                    call_actor_raw
+                    if isinstance(call_actor_raw, Mapping)
+                    else (actor or {"id": f"livekit:{server}"})
+                )
                 if active_client is not None:
                     step_up_resp = await active_client.request_step_up(
-                        action=action,
+                        protocol=step_up_mode,
+                        sub=effective_sub,
+                        actor=effective_actor,
+                        aud=audience,
                         policy_id=policy.policy_id,
-                        audience=audience,
-                        mode=step_up_mode,
+                        action=action,
                         session_id=session_id or None,
-                        reason=f"voice_verdict:{verdict_val}",
+                        voice_verdict_jws=latest.verdict_jws if latest is not None else None,
+                        summary=f"Step-up required for {server}:{resolved_tool} ({verdict_val})",
                     )
                 if raise_on_block:
                     raise EntrosVoiceGateBlocked(
@@ -321,8 +447,9 @@ def entros_voice_gate(
                     "step_up": (
                         {
                             "jti": step_up_resp.jti,
-                            "request_digest": step_up_resp.request_digest,
+                            "protocol": step_up_resp.protocol,
                             "approval_url": step_up_resp.approval_url,
+                            "challenge_b64url": step_up_resp.challenge_b64url,
                             "expires_at": step_up_resp.expires_at,
                             "auth_req_id": step_up_resp.auth_req_id,
                         }
@@ -331,17 +458,38 @@ def entros_voice_gate(
                     ),
                 }
 
+            if not session_id:
+                mismatch_reason = RefusalCode.CONTINUITY_BROKEN.value
+                mismatch_detail = "Active LiveKit session_id is required to verify session continuity"
+                if raise_on_block:
+                    raise EntrosVoiceGateBlocked(
+                        reason=mismatch_reason,
+                        verification=VerificationResult(
+                            ok=False,
+                            decision="deny",
+                            reason=RefusalCode.CONTINUITY_BROKEN,
+                            detail=mismatch_detail,
+                            evaluated_at=now,
+                        ),
+                    )
+                return {
+                    "decision": "deny",
+                    "reason": mismatch_reason,
+                    "detail": mismatch_detail,
+                }
+
             result = await verify_agent_permit_v2_async(
                 permit_jws,
                 policy=policy,
                 expected_audience=audience,
                 jwks=jwks,
                 action=action,
-                now_seconds=now,
+                expected_session_id=session_id,
+                now_seconds=now_fn,
                 nonce_store=nonce_store,
                 require_registered_nonce=require_registered_nonce,
             )
-            if not result.ok:
+            if not result.ok or result.permit is None:
                 reason = result.reason.value if result.reason else "denied"
                 if raise_on_block:
                     raise EntrosVoiceGateBlocked(reason=reason, verification=result)

@@ -13,11 +13,15 @@ import {
 import {
   createPermitApiClient,
   PermitApiClient,
+  type CompleteStepUpRequestV2,
+  type CompleteStepUpResponseV2,
   type CreateStepUpRequestV2,
   type CreateStepUpResponseV2,
+  type FetchScittReceiptOptionsV2,
   type FetchScittReceiptResponseV2,
   type IssuePermitRequestV2,
   type IssuePermitResponseV2,
+  type PollStepUpResponseV2,
   type VerifyPermitOnlineRequestV2,
   type VerifyPermitOnlineResponseV2,
 } from "./permit/client";
@@ -38,6 +42,7 @@ import {
   type VoiceClientDebugEvent,
   type VoiceStreamHandle,
   type VoiceStreamOptions,
+  type WebSocketFactory,
   type WebSocketLikeConstructor,
 } from "./voice/client";
 import {
@@ -61,6 +66,10 @@ export interface EntrosClientConfig {
   fetch?: typeof globalThis.fetch;
   /** Optional custom WebSocket constructor for voice streaming. */
   webSocketCtor?: WebSocketLikeConstructor;
+  /** Optional custom WebSocket factory receiving HTTP upgrade headers. */
+  webSocketFactory?: WebSocketFactory;
+  /** Optional extra HTTP upgrade headers for WebSocket voice streams. */
+  webSocketHeaders?: Record<string, string>;
   /** Request timeout in milliseconds. Default 10,000. */
   timeoutMs?: number;
   /** Optional atomic nonce store for single-use permit verification. */
@@ -96,6 +105,8 @@ export class EntrosClient {
       apiKey: config.apiKey,
       fetch: config.fetch,
       webSocketCtor: config.webSocketCtor,
+      webSocketFactory: config.webSocketFactory,
+      webSocketHeaders: config.webSocketHeaders,
       timeoutMs: config.timeoutMs,
       onDebug: config.onVoiceDebug,
     });
@@ -122,6 +133,7 @@ export class EntrosClient {
   analyzeVoice(input: AnalyzeVoiceInput): Promise<AnalyzeVoiceResponse> {
     return this.voice.analyze({
       verifyWithJwks: this.jwks,
+      revokedKids: this.#revokedKids,
       nowSeconds: this.#nowSeconds,
       ...input,
     });
@@ -130,6 +142,7 @@ export class EntrosClient {
   connectVoiceStream(options: VoiceStreamOptions): VoiceStreamHandle {
     return this.voice.connectStream({
       verifyWithJwks: this.jwks,
+      revokedKids: this.#revokedKids,
       nowSeconds: this.#nowSeconds,
       ...options,
     });
@@ -149,6 +162,20 @@ export class EntrosClient {
     return this.permits.createStepUp(input, signal);
   }
 
+  pollStepUp(
+    jti: string,
+    signal?: AbortSignal,
+  ): Promise<PollStepUpResponseV2> {
+    return this.permits.pollStepUp(jti, signal);
+  }
+
+  completeStepUp(
+    input: CompleteStepUpRequestV2,
+    signal?: AbortSignal,
+  ): Promise<CompleteStepUpResponseV2> {
+    return this.permits.completeStepUp(input, signal);
+  }
+
   verifyPermitOnline(
     input: VerifyPermitOnlineRequestV2,
     signal?: AbortSignal,
@@ -158,9 +185,19 @@ export class EntrosClient {
 
   fetchScittReceipt(
     jti: string,
-    signal?: AbortSignal,
+    signalOrOptions?: AbortSignal | FetchScittReceiptOptionsV2,
   ): Promise<FetchScittReceiptResponseV2> {
-    return this.permits.fetchScittReceipt(jti, signal);
+    const normalized: FetchScittReceiptOptionsV2 =
+      signalOrOptions !== undefined && "aborted" in signalOrOptions
+        ? { signal: signalOrOptions }
+        : (signalOrOptions ?? {});
+    const verifyWithJwks =
+      "verifyWithJwks" in normalized ? normalized.verifyWithJwks : this.jwks;
+    return this.permits.fetchScittReceipt(jti, {
+      revokedKids: this.#revokedKids,
+      ...normalized,
+      verifyWithJwks,
+    });
   }
 
   verifyVoiceLivenessVerdict(
@@ -228,7 +265,11 @@ export {
   deriveWebAuthnChallengeV2,
   verifyWebAuthnAssertionV2,
 } from "./permit/webauthn";
-export { computeJwkThumbprint, verifyDpopProofV2 } from "./permit/dpop";
+export {
+  computeJwkThumbprint,
+  InMemoryDpopJtiStore,
+  verifyDpopProofV2,
+} from "./permit/dpop";
 export { createStaticJwksResolver } from "./permit/jwks";
 export {
   AGENT_PERMIT_V2_DOMAIN,
@@ -249,6 +290,7 @@ export type {
   CanonicalActionV2Result,
   ConsistencyDrift,
   ContinuityModeV2,
+  DpopJtiStore,
   DpopVerifyOptions,
   DpopVerifyResult,
   EcP256Jwk,

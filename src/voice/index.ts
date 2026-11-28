@@ -7,6 +7,7 @@
 
 export {
   createVoiceLivenessClient,
+  mapVoiceCodecToWire,
   sanitizeVoiceErrorDetail,
   VoiceClientError,
   VoiceLivenessClient,
@@ -17,8 +18,12 @@ export type {
   VoiceAudioCodec,
   VoiceClientConfig,
   VoiceClientDebugEvent,
+  VoiceStreamCodec,
   VoiceStreamHandle,
   VoiceStreamOptions,
+  VoiceWireEncoding,
+  WebSocketConnectInit,
+  WebSocketFactory,
   WebSocketLike,
   WebSocketLikeConstructor,
 } from "./client";

@@ -11,12 +11,12 @@ import hmac
 import inspect
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from pydantic import ValidationError
 
 from entros_verify.canonical import hash_action_v2
-from entros_verify.dpop import verify_dpop_proof
+from entros_verify.dpop import DpopJtiStore, DpopVerificationResult, verify_dpop_proof
 from entros_verify.errors import (
     CanonicalizationError,
     JwksUnavailableError,
@@ -39,7 +39,6 @@ from entros_verify.models import (
     ScittReceiptResult,
     VerificationResult,
     VoiceLivenessVerdict,
-    VoiceRules,
     WebAuthnAssertionInput,
     WebAuthnVerificationResult,
 )
@@ -74,6 +73,29 @@ def _is_printable_ascii(text: str, min_len: int, max_len: int) -> bool:
     if len(text) < min_len or len(text) > max_len:
         return False
     return all(0x20 <= ord(ch) <= 0x7E for ch in text)
+
+
+def _safe_ct_eq_str(left: str, right: str) -> bool:
+    try:
+        return hmac.compare_digest(left.encode("utf-8"), right.encode("utf-8"))
+    except UnicodeEncodeError:
+        return False
+
+
+def _read_now_seconds(now_seconds: int | Callable[[], int] | None) -> int | None:
+    try:
+        val = (
+            int(time.time())
+            if now_seconds is None
+            else (now_seconds() if callable(now_seconds) else now_seconds)
+        )
+    except Exception:
+        return None
+    if not isinstance(val, int) or isinstance(val, bool):
+        return None
+    if not (MIN_TIMESTAMP_SECONDS <= val <= MAX_TIMESTAMP_SECONDS):
+        return None
+    return val
 
 
 def _deny(
@@ -226,9 +248,7 @@ def _validate_permit_structure(
     if (
         permit.cnf is not None
         and permit.actor.key_jkt is not None
-        and not hmac.compare_digest(
-            permit.cnf.jkt.encode("utf-8"), permit.actor.key_jkt.encode("utf-8")
-        )
+        and not _safe_ct_eq_str(permit.cnf.jkt, permit.actor.key_jkt)
     ):
         return None, _deny(
             RefusalCode.INVALID_PERMIT,
@@ -243,8 +263,6 @@ def _requires_voice(permit: AgentPermitV2, policy: PolicyV2) -> bool:
     return (
         permit.assurance_tier in _VOICE_TIERS
         or "voice_liveness" in policy.required_modalities
-        or "voice_liveness" in permit.modality
-        or permit.voice_verdict_jws is not None
     )
 
 
@@ -266,33 +284,39 @@ def _check_uniqueness(permit: AgentPermitV2, policy: PolicyV2) -> bool:
     return False
 
 
-def evaluate_policy_v2(
+def _evaluate_pre_voice_steps(
     *,
     permit: AgentPermitV2,
     policy: PolicyV2,
     expected_audience: str,
-    expected_request_digest: str,
+    expected_request_digest: str | None,
     now_seconds: int,
-    voice_verdict: VoiceLivenessVerdict | None = None,
-    webauthn_result: WebAuthnVerificationResult | None = None,
-    dpop_verified: bool | None = None,
-    scitt_receipt: ScittReceiptResult | None = None,
-    require_scitt_verified: bool = True,
-) -> VerificationResult:
-    """Pure Policy v2 evaluator with zero I/O or nonce mutation (steps 8 to 28)."""
+    expected_session_id: str | None = None,
+    digest_err: str | None = None,
+) -> VerificationResult | None:
+    """Evaluate pure non-I/O steps 8 through 18 in normative order; return None if allowed."""
+    if (
+        not isinstance(now_seconds, int)
+        or isinstance(now_seconds, bool)
+        or not (MIN_TIMESTAMP_SECONDS <= now_seconds <= MAX_TIMESTAMP_SECONDS)
+    ):
+        return _deny(
+            RefusalCode.INVALID_PERMIT,
+            evaluated_at=0,
+            detail="Invalid evaluation clock timestamp",
+            permit=permit,
+        )
+
     if (
         permit.cnf is not None
         and permit.actor.key_jkt is not None
-        and not hmac.compare_digest(
-            permit.cnf.jkt.encode("utf-8"), permit.actor.key_jkt.encode("utf-8")
-        )
+        and not _safe_ct_eq_str(permit.cnf.jkt, permit.actor.key_jkt)
     ):
         return _deny(
             RefusalCode.INVALID_PERMIT,
             evaluated_at=now_seconds,
             detail="permit cnf.jkt does not match actor.key_jkt",
             permit=permit,
-            voice_verdict=voice_verdict,
         )
 
     # Step 8: Permit lifetime bounds (30..900s and policy cap).
@@ -345,13 +369,17 @@ def evaluate_policy_v2(
         )
 
     # Step 12: Canonical RFC 8785 request_digest match.
-    if not _is_non_zero_hex64(expected_request_digest) or not hmac.compare_digest(
-        permit.request_digest.encode("ascii"), expected_request_digest.encode("ascii")
+    if (
+        expected_request_digest is None
+        or not _is_non_zero_hex64(expected_request_digest)
+        or not hmac.compare_digest(
+            permit.request_digest.encode("ascii"), expected_request_digest.encode("ascii")
+        )
     ):
         return _deny(
             RefusalCode.REQUEST_DIGEST_MISMATCH,
             evaluated_at=now_seconds,
-            detail="Recomputed request_digest does not match permit",
+            detail=digest_err or "Recomputed request_digest does not match permit",
             permit=permit,
         )
 
@@ -373,13 +401,9 @@ def evaluate_policy_v2(
             permit=permit,
         )
 
-    # Step 15: Required modalities subset check (policy + tier invariants).
+    # Step 15: Required modalities subset check against policy.required_modalities.
     permit_modalities = set(permit.modality)
     required_modalities = set(policy.required_modalities)
-    if permit.assurance_tier in _VOICE_TIERS:
-        required_modalities.add("voice_liveness")
-    if permit.assurance_tier in _WEBAUTHN_TIERS:
-        required_modalities.add("webauthn_uv")
     if not required_modalities.issubset(permit_modalities):
         missing = sorted(required_modalities - permit_modalities)
         return _deny(
@@ -401,21 +425,13 @@ def evaluate_policy_v2(
             permit=permit,
         )
 
-    # Step 16: Freshness monotonicity against permit iat and underlying voice verdict.
+    # Step 16 (part 1): Freshness monotonicity against permit iat.
     if permit.freshness_verified_at > permit.iat:
         return _deny(
             RefusalCode.FRESHNESS_REGRESSION,
             evaluated_at=now_seconds,
             detail="freshness_verified_at exceeds permit iat",
             permit=permit,
-        )
-    if voice_verdict is not None and permit.freshness_verified_at > voice_verdict.iat:
-        return _deny(
-            RefusalCode.FRESHNESS_REGRESSION,
-            evaluated_at=now_seconds,
-            detail="freshness_verified_at exceeds underlying voice verdict iat",
-            permit=permit,
-            voice_verdict=voice_verdict,
         )
 
     # Step 17: Evidence staleness bound.
@@ -425,10 +441,19 @@ def evaluate_policy_v2(
             evaluated_at=now_seconds,
             detail="Underlying human-presence evidence exceeds max_evidence_age_seconds",
             permit=permit,
-            voice_verdict=voice_verdict,
         )
 
     # Step 18: Continuity requirement.
+    if (
+        expected_session_id is not None
+        and permit.continuity.session_id != expected_session_id
+    ):
+        return _deny(
+            RefusalCode.CONTINUITY_BROKEN,
+            evaluated_at=now_seconds,
+            detail="Permit continuity.session_id does not match active session",
+            permit=permit,
+        )
     voice_required = _requires_voice(permit, policy)
     if policy.require_continuity:
         if permit.continuity.call_continuity_verified is not True:
@@ -437,7 +462,6 @@ def evaluate_policy_v2(
                 evaluated_at=now_seconds,
                 detail="Policy requires verified call continuity",
                 permit=permit,
-                voice_verdict=voice_verdict,
             )
         if voice_required and permit.continuity.mode != "call_session":
             return _deny(
@@ -445,193 +469,265 @@ def evaluate_policy_v2(
                 evaluated_at=now_seconds,
                 detail="Continuous voice screening requires continuity.mode == 'call_session'",
                 permit=permit,
-                voice_verdict=voice_verdict,
             )
 
-    # Steps 19 to 24: VoiceLivenessVerdict binding checks.
-    if voice_required:
-        if voice_verdict is None:
-            return _deny(
-                RefusalCode.VOICE_VERDICT_INVALID,
-                evaluated_at=now_seconds,
-                detail="Verified VoiceLivenessVerdict is required",
-                permit=permit,
-            )
+    return None
 
-        # Step 20: Mandatory memory_only retention invariant.
-        if voice_verdict.retention != "memory_only":
-            return _deny(
-                RefusalCode.VOICE_RETENTION_VIOLATION,
-                evaluated_at=now_seconds,
-                detail="VoiceLivenessVerdict retention must be 'memory_only'",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
 
-        # Session ID continuity binding.
-        if voice_verdict.session_id != permit.continuity.session_id:
-            return _deny(
-                RefusalCode.CONTINUITY_BROKEN,
-                evaluated_at=now_seconds,
-                detail="Voice verdict session_id does not match permit continuity.session_id",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
+def _evaluate_voice_binding_steps(
+    *,
+    permit: AgentPermitV2,
+    policy: PolicyV2,
+    voice_verdict: VoiceLivenessVerdict | None,
+    now_seconds: int,
+) -> VerificationResult | None:
+    """Evaluate pure steps 19 through 24 for VoiceLivenessVerdict binding."""
+    voice_required = _requires_voice(permit, policy)
+    if voice_required and voice_verdict is None:
+        return _deny(
+            RefusalCode.VOICE_VERDICT_INVALID,
+            evaluated_at=now_seconds,
+            detail="Verified VoiceLivenessVerdict is required",
+            permit=permit,
+        )
 
-        rules = policy.voice_rules or VoiceRules()
+    if voice_verdict is None:
+        return None
 
-        # Voice age check.
-        if now_seconds - voice_verdict.iat > rules.max_voice_age_seconds:
-            return _deny(
-                RefusalCode.EVIDENCE_STALE,
-                evaluated_at=now_seconds,
-                detail="Voice verdict age exceeds policy.voice_rules.max_voice_age_seconds",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
+    # Step 20: Mandatory memory_only retention invariant.
+    if voice_verdict.retention != "memory_only":
+        return _deny(
+            RefusalCode.VOICE_RETENTION_VIOLATION,
+            evaluated_at=now_seconds,
+            detail="VoiceLivenessVerdict retention must be 'memory_only'",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
 
-        # Step 21: Operating profile alignment with policy and assurance_tier.
-        if voice_verdict.operating_profile not in rules.allowed_profiles:
-            return _deny(
-                RefusalCode.VOICE_PROFILE_DISALLOWED,
-                evaluated_at=now_seconds,
-                detail=f"operating_profile {voice_verdict.operating_profile!r} is disallowed",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
-        if (
-            permit.assurance_tier == "voice_liveness_webrtc"
-            and voice_verdict.operating_profile not in ("webrtc_16k", "wideband_clean")
-        ):
-            return _deny(
-                RefusalCode.VOICE_PROFILE_DISALLOWED,
-                evaluated_at=now_seconds,
-                detail="voice_liveness_webrtc requires webrtc_16k or wideband_clean profile",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
-        if (
-            permit.assurance_tier == "voice_liveness_telephony"
-            and voice_verdict.operating_profile != "telephony_8k"
-        ):
-            return _deny(
-                RefusalCode.VOICE_PROFILE_DISALLOWED,
-                evaluated_at=now_seconds,
-                detail="voice_liveness_telephony requires telephony_8k profile",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
-        if (
-            rules.allowed_model_versions
-            and voice_verdict.model_version not in rules.allowed_model_versions
-        ):
-            return _deny(
-                RefusalCode.VOICE_PROFILE_DISALLOWED,
-                evaluated_at=now_seconds,
-                detail="Voice model_version is not in allowed_model_versions",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
+    # Freshness monotonicity against underlying voice verdict iat.
+    if permit.freshness_verified_at > voice_verdict.iat:
+        return _deny(
+            RefusalCode.FRESHNESS_REGRESSION,
+            evaluated_at=now_seconds,
+            detail="freshness_verified_at exceeds underlying voice verdict iat",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
 
-        # Step 22: Verdict, calibrated LLR, and acoustic signal quality floors.
-        if (
-            voice_verdict.verdict == "insufficient_signal" and rules.reject_on_abstain
-        ) or voice_verdict.verdict not in rules.allowed_verdicts:
-            return _deny(
-                RefusalCode.VOICE_VERDICT_NOT_ALLOWED,
-                evaluated_at=now_seconds,
-                detail=f"Voice verdict {voice_verdict.verdict!r} is not permitted by policy",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
-        if (
-            voice_verdict.calibrated_llr is None
-            or voice_verdict.calibrated_llr < rules.min_calibrated_llr
-        ):
-            return _deny(
-                RefusalCode.VOICE_VERDICT_NOT_ALLOWED,
-                evaluated_at=now_seconds,
-                detail="Voice calibrated_llr is below policy minimum",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
-        if (
-            voice_verdict.signal_quality.speech_ms < rules.min_speech_ms
-            or voice_verdict.signal_quality.snr_db < rules.min_snr_db
-        ):
-            return _deny(
-                RefusalCode.VOICE_VERDICT_NOT_ALLOWED,
-                evaluated_at=now_seconds,
-                detail="Voice signal quality is below policy floor",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
+    # Session ID continuity binding.
+    if not voice_verdict.session_id or voice_verdict.session_id != permit.continuity.session_id:
+        return _deny(
+            RefusalCode.CONTINUITY_BROKEN,
+            evaluated_at=now_seconds,
+            detail="Voice verdict session_id does not match permit continuity.session_id",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
 
-        # Step 23: Partial-spoof span gate.
-        if len(voice_verdict.partial_spoof_spans) > rules.max_partial_spoof_spans:
-            return _deny(
-                RefusalCode.PARTIAL_SPOOF_DETECTED,
-                evaluated_at=now_seconds,
-                detail="Partial spoof spans exceed policy.voice_rules.max_partial_spoof_spans",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
-        if rules.max_partial_spoof_probability is not None and any(
+    rules = policy.voice_rules
+
+    # Optional voice age bound when explicitly configured.
+    if (
+        rules is not None
+        and rules.max_voice_age_seconds is not None
+        and now_seconds - voice_verdict.iat > rules.max_voice_age_seconds
+    ):
+        return _deny(
+            RefusalCode.EVIDENCE_STALE,
+            evaluated_at=now_seconds,
+            detail="Voice verdict age exceeds policy.voice_rules.max_voice_age_seconds",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+
+    # Step 21: Operating profile alignment with assurance_tier and optional voice_rules.
+    if (
+        permit.assurance_tier == "voice_liveness_webrtc"
+        and voice_verdict.operating_profile not in ("webrtc_16k", "wideband_clean")
+    ):
+        return _deny(
+            RefusalCode.VOICE_PROFILE_DISALLOWED,
+            evaluated_at=now_seconds,
+            detail="voice_liveness_webrtc requires webrtc_16k or wideband_clean profile",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if (
+        permit.assurance_tier == "voice_liveness_telephony"
+        and voice_verdict.operating_profile != "telephony_8k"
+    ):
+        return _deny(
+            RefusalCode.VOICE_PROFILE_DISALLOWED,
+            evaluated_at=now_seconds,
+            detail="voice_liveness_telephony requires telephony_8k profile",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if rules is not None and voice_verdict.operating_profile not in rules.allowed_profiles:
+        return _deny(
+            RefusalCode.VOICE_PROFILE_DISALLOWED,
+            evaluated_at=now_seconds,
+            detail=f"operating_profile {voice_verdict.operating_profile!r} is disallowed",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if (
+        rules is not None
+        and rules.allowed_model_versions
+        and voice_verdict.model_version not in rules.allowed_model_versions
+    ):
+        return _deny(
+            RefusalCode.VOICE_PROFILE_DISALLOWED,
+            evaluated_at=now_seconds,
+            detail="Voice model_version is not in allowed_model_versions",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+
+    # Step 22: Verdict, abstain, and optional calibrated LLR / signal quality floors.
+    allowed_verdicts = rules.allowed_verdicts if rules is not None else ["likely_human"]
+    reject_on_abstain = rules.reject_on_abstain if rules is not None else True
+    if (
+        voice_verdict.verdict == "insufficient_signal" and reject_on_abstain
+    ) or voice_verdict.verdict not in allowed_verdicts:
+        return _deny(
+            RefusalCode.VOICE_VERDICT_NOT_ALLOWED,
+            evaluated_at=now_seconds,
+            detail=f"Voice verdict {voice_verdict.verdict!r} is not permitted by policy",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if rules is not None and rules.min_calibrated_llr is not None and (
+        voice_verdict.calibrated_llr is None
+        or voice_verdict.calibrated_llr < rules.min_calibrated_llr
+    ):
+        return _deny(
+            RefusalCode.VOICE_VERDICT_NOT_ALLOWED,
+            evaluated_at=now_seconds,
+            detail="Voice calibrated_llr is below policy minimum",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if (
+        rules is not None
+        and rules.min_speech_ms is not None
+        and voice_verdict.signal_quality.speech_ms < rules.min_speech_ms
+    ):
+        return _deny(
+            RefusalCode.VOICE_VERDICT_NOT_ALLOWED,
+            evaluated_at=now_seconds,
+            detail="Voice speech_ms is below policy minimum",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if (
+        rules is not None
+        and rules.min_snr_db is not None
+        and voice_verdict.signal_quality.snr_db < rules.min_snr_db
+    ):
+        return _deny(
+            RefusalCode.VOICE_VERDICT_NOT_ALLOWED,
+            evaluated_at=now_seconds,
+            detail="Voice snr_db is below policy minimum",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+
+    # Step 23: Partial-spoof span gate.
+    max_spans = rules.max_partial_spoof_spans if rules is not None else 0
+    if len(voice_verdict.partial_spoof_spans) > max_spans:
+        return _deny(
+            RefusalCode.PARTIAL_SPOOF_DETECTED,
+            evaluated_at=now_seconds,
+            detail="Partial spoof spans exceed policy.voice_rules.max_partial_spoof_spans",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if (
+        rules is not None
+        and rules.max_partial_spoof_probability is not None
+        and any(
             span.spoof_probability > rules.max_partial_spoof_probability
             for span in voice_verdict.partial_spoof_spans
-        ):
-            return _deny(
-                RefusalCode.PARTIAL_SPOOF_DETECTED,
-                evaluated_at=now_seconds,
-                detail="Partial spoof span probability exceeds policy ceiling",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
+        )
+    ):
+        return _deny(
+            RefusalCode.PARTIAL_SPOOF_DETECTED,
+            evaluated_at=now_seconds,
+            detail="Partial spoof span probability exceeds policy ceiling",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
 
-        # Step 24: Rolling consistency drift monitor gate.
-        if (
-            rules.reject_on_consistency_drift
-            and voice_verdict.consistency_drift.status == "elevated"
-        ):
-            return _deny(
-                RefusalCode.CONSISTENCY_DRIFT_EXCEEDED,
-                evaluated_at=now_seconds,
-                detail="Voice consistency_drift status is elevated",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
+    # Step 24: Rolling consistency drift monitor gate.
+    reject_drift = rules.reject_on_consistency_drift if rules is not None else True
+    if reject_drift and voice_verdict.consistency_drift.status == "elevated":
+        return _deny(
+            RefusalCode.CONSISTENCY_DRIFT_EXCEEDED,
+            evaluated_at=now_seconds,
+            detail="Voice consistency_drift status is elevated",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
 
-    # Steps 25 and 26: Hardware Passkey (WebAuthn UV) checks.
+    return None
+
+
+def _evaluate_webauthn_steps(
+    *,
+    permit: AgentPermitV2,
+    policy: PolicyV2,
+    webauthn_result: WebAuthnVerificationResult | None,
+    now_seconds: int,
+    voice_verdict: VoiceLivenessVerdict | None,
+) -> tuple[str | None, VerificationResult | None]:
+    """Evaluate pure steps 25 and 26 for hardware Passkey (WebAuthn UV) checks."""
     webauthn_digest: str | None = permit.webauthn_assertion_digest
-    if _requires_webauthn(permit, policy):
-        if permit.webauthn_assertion_digest is None:
-            return _deny(
-                RefusalCode.WEBAUTHN_ASSERTION_INVALID,
-                evaluated_at=now_seconds,
-                detail="Permit missing required webauthn_assertion_digest",
-                permit=permit,
-                voice_verdict=voice_verdict,
-            )
-        if webauthn_result is not None and not webauthn_result.ok:
-            return _deny(
+    if _requires_webauthn(permit, policy) and permit.webauthn_assertion_digest is None:
+        return None, _deny(
+            RefusalCode.WEBAUTHN_ASSERTION_INVALID,
+            evaluated_at=now_seconds,
+            detail="Permit missing required webauthn_assertion_digest",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if webauthn_result is not None:
+        if not webauthn_result.ok:
+            return None, _deny(
                 webauthn_result.reason or RefusalCode.WEBAUTHN_ASSERTION_INVALID,
                 evaluated_at=now_seconds,
                 detail="WebAuthn assertion verification failed",
                 permit=permit,
                 voice_verdict=voice_verdict,
             )
-        if webauthn_result is not None and webauthn_result.assertion_digest is not None:
-            webauthn_digest = webauthn_result.assertion_digest
-    elif webauthn_result is not None and not webauthn_result.ok:
-        return _deny(
-            webauthn_result.reason or RefusalCode.WEBAUTHN_ASSERTION_INVALID,
-            evaluated_at=now_seconds,
-            detail="Provided WebAuthn assertion failed verification",
-            permit=permit,
-            voice_verdict=voice_verdict,
-        )
+        if (
+            permit.webauthn_assertion_digest is None
+            or webauthn_result.assertion_digest is None
+            or not _safe_ct_eq_str(
+                webauthn_result.assertion_digest,
+                permit.webauthn_assertion_digest,
+            )
+        ):
+            return None, _deny(
+                RefusalCode.WEBAUTHN_ASSERTION_INVALID,
+                evaluated_at=now_seconds,
+                detail="WebAuthn assertion digest does not match permit.webauthn_assertion_digest",
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
+        webauthn_digest = webauthn_result.assertion_digest
+    return webauthn_digest, None
 
-    # Step 27: RFC 9449 DPoP sender-constrain check.
+
+def _evaluate_dpop_step(
+    *,
+    permit: AgentPermitV2,
+    policy: PolicyV2,
+    dpop_verified: bool | None,
+    now_seconds: int,
+    voice_verdict: VoiceLivenessVerdict | None,
+) -> VerificationResult | None:
+    """Evaluate pure step 27 for RFC 9449 DPoP sender-constraint enforcement."""
     if policy.require_dpop:
         if permit.cnf is None or dpop_verified is not True:
             return _deny(
@@ -649,12 +745,23 @@ def evaluate_policy_v2(
             permit=permit,
             voice_verdict=voice_verdict,
         )
+    return None
 
-    # Step 28: IETF SCITT receipt verification and binding.
-    if policy.require_scitt_receipt and (
-        permit.scitt_receipt is None or (require_scitt_verified and scitt_receipt is None)
-    ):
-        return _deny(
+
+def _evaluate_scitt_step(
+    *,
+    permit: AgentPermitV2,
+    policy: PolicyV2,
+    scitt_receipt: ScittReceiptResult | None,
+    require_scitt_verified: bool,
+    now_seconds: int,
+    voice_verdict: VoiceLivenessVerdict | None,
+) -> tuple[ScittReceiptResult | None, VerificationResult | None]:
+    """Evaluate pure step 28 for IETF SCITT receipt presence and allow bindings."""
+    if not policy.require_scitt_receipt:
+        return None, None
+    if permit.scitt_receipt is None or (require_scitt_verified and scitt_receipt is None):
+        return None, _deny(
             RefusalCode.SCITT_RECEIPT_INVALID,
             evaluated_at=now_seconds,
             detail="Policy requires a verified SCITT COSE_Sign1 receipt",
@@ -664,19 +771,89 @@ def evaluate_policy_v2(
     if scitt_receipt is not None:
         sp = scitt_receipt.payload
         if (
-            sp.jti != permit.jti
+            sp.decision != "allow"
+            or sp.jti != permit.jti
             or sp.request_digest != permit.request_digest
             or sp.policy_id != permit.policy_id
             or sp.aud != permit.aud
             or sp.retention != "memory_only"
         ):
-            return _deny(
+            return None, _deny(
                 RefusalCode.SCITT_RECEIPT_INVALID,
                 evaluated_at=now_seconds,
-                detail="SCITT receipt payload does not match permit bindings",
+                detail="SCITT receipt payload does not match allow permit bindings",
                 permit=permit,
                 voice_verdict=voice_verdict,
             )
+        return scitt_receipt, None
+    return None, None
+
+
+def evaluate_policy_v2(
+    *,
+    permit: AgentPermitV2,
+    policy: PolicyV2,
+    expected_audience: str,
+    expected_request_digest: str,
+    now_seconds: int,
+    expected_session_id: str | None = None,
+    voice_verdict: VoiceLivenessVerdict | None = None,
+    webauthn_result: WebAuthnVerificationResult | None = None,
+    dpop_verified: bool | None = None,
+    scitt_receipt: ScittReceiptResult | None = None,
+    require_scitt_verified: bool = True,
+) -> VerificationResult:
+    """Pure Policy v2 evaluator with zero I/O or nonce mutation (steps 8 to 28)."""
+    pre_voice_err = _evaluate_pre_voice_steps(
+        permit=permit,
+        policy=policy,
+        expected_audience=expected_audience,
+        expected_request_digest=expected_request_digest,
+        now_seconds=now_seconds,
+        expected_session_id=expected_session_id,
+    )
+    if pre_voice_err is not None:
+        return pre_voice_err
+
+    voice_err = _evaluate_voice_binding_steps(
+        permit=permit,
+        policy=policy,
+        voice_verdict=voice_verdict,
+        now_seconds=now_seconds,
+    )
+    if voice_err is not None:
+        return voice_err
+
+    webauthn_digest, webauthn_err = _evaluate_webauthn_steps(
+        permit=permit,
+        policy=policy,
+        webauthn_result=webauthn_result,
+        now_seconds=now_seconds,
+        voice_verdict=voice_verdict,
+    )
+    if webauthn_err is not None:
+        return webauthn_err
+
+    dpop_err = _evaluate_dpop_step(
+        permit=permit,
+        policy=policy,
+        dpop_verified=dpop_verified,
+        now_seconds=now_seconds,
+        voice_verdict=voice_verdict,
+    )
+    if dpop_err is not None:
+        return dpop_err
+
+    verified_scitt, scitt_err = _evaluate_scitt_step(
+        permit=permit,
+        policy=policy,
+        scitt_receipt=scitt_receipt,
+        require_scitt_verified=require_scitt_verified,
+        now_seconds=now_seconds,
+        voice_verdict=voice_verdict,
+    )
+    if scitt_err is not None:
+        return scitt_err
 
     return VerificationResult(
         ok=True,
@@ -684,7 +861,7 @@ def evaluate_policy_v2(
         reason=None,
         permit=permit,
         voice_verdict=voice_verdict,
-        scitt_receipt=scitt_receipt,
+        scitt_receipt=verified_scitt,
         webauthn_assertion_digest=webauthn_digest,
         evaluated_at=now_seconds,
     )
@@ -700,8 +877,8 @@ def _resolve_expected_digest(
             computed = hash_action_v2(action)
         except CanonicalizationError as exc:
             return None, f"Action canonicalization failed: {exc}"
-        if expected_request_digest is not None and not hmac.compare_digest(
-            computed.encode("ascii"), expected_request_digest.encode("ascii")
+        if expected_request_digest is not None and not _safe_ct_eq_str(
+            computed, expected_request_digest
         ):
             return None, "Provided action digest disagrees with expected_request_digest"
         return computed, None
@@ -715,6 +892,8 @@ def _apply_nonce_outcome(
     evaluated_at: int,
 ) -> VerificationResult:
     if outcome.status == "consumed":
+        if precheck.evaluated_at != evaluated_at:
+            return precheck.model_copy(update={"evaluated_at": evaluated_at})
         return precheck
     if outcome.status == "not_found":
         return _deny(
@@ -741,20 +920,18 @@ def _apply_nonce_outcome(
     )
 
 
-def _run_dpop_check(
+def _run_dpop_precheck(
     *,
     permit: AgentPermitV2,
     permit_jws: str,
     policy: PolicyV2,
     dpop: DpopVerificationInput | None,
     now_seconds: int,
-) -> bool | None:
+) -> tuple[bool | None, DpopVerificationResult | None]:
     if not policy.require_dpop and dpop is None:
-        return None
-    if permit.cnf is None:
-        return False
-    if dpop is None:
-        return False
+        return None, None
+    if permit.cnf is None or dpop is None:
+        return False, None
     res = verify_dpop_proof(
         proof_jwt=dpop.proof_jwt,
         expected_jkt=permit.cnf.jkt,
@@ -764,7 +941,146 @@ def _run_dpop_check(
         now_seconds=now_seconds,
         max_age_seconds=dpop.max_age_seconds,
     )
-    return res.ok
+    return res.ok, res
+
+
+def _finalize_post_precheck_checks(
+    *,
+    permit: AgentPermitV2,
+    policy: PolicyV2,
+    voice_verdict: VoiceLivenessVerdict | None,
+    dpop: DpopVerificationInput | None,
+    dpop_res: DpopVerificationResult | None,
+    dpop_jti_store: DpopJtiStore | None,
+    now_seconds: int | Callable[[], int] | None,
+) -> tuple[int, VerificationResult | None]:
+    """Resample clock after async/sync JWKS work, recheck expiry/age, and consume DPoP jti."""
+    post_now = _read_now_seconds(now_seconds)
+    if post_now is None:
+        return 0, _deny(
+            RefusalCode.INVALID_PERMIT,
+            evaluated_at=0,
+            detail="Invalid post-precheck clock timestamp",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if post_now >= permit.exp:
+        return post_now, _deny(
+            RefusalCode.PERMIT_EXPIRED,
+            evaluated_at=post_now,
+            detail="Permit expired before nonce consumption",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if post_now - permit.freshness_verified_at > policy.max_evidence_age_seconds:
+        return post_now, _deny(
+            RefusalCode.EVIDENCE_STALE,
+            evaluated_at=post_now,
+            detail="Evidence became stale before nonce consumption",
+            permit=permit,
+            voice_verdict=voice_verdict,
+        )
+    if voice_verdict is not None:
+        if post_now >= voice_verdict.exp:
+            return post_now, _deny(
+                RefusalCode.VOICE_VERDICT_INVALID,
+                evaluated_at=post_now,
+                detail="Voice verdict expired before nonce consumption",
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
+        if (
+            policy.voice_rules is not None
+            and policy.voice_rules.max_voice_age_seconds is not None
+            and post_now - voice_verdict.iat > policy.voice_rules.max_voice_age_seconds
+        ):
+            return post_now, _deny(
+                RefusalCode.EVIDENCE_STALE,
+                evaluated_at=post_now,
+                detail="Voice verdict became stale before nonce consumption",
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
+    if dpop is not None and dpop_res is not None and dpop_res.ok:
+        if dpop_res.iat is not None and post_now - dpop_res.iat > dpop.max_age_seconds:
+            return post_now, _deny(
+                RefusalCode.DPOP_PROOF_INVALID,
+                evaluated_at=post_now,
+                detail="DPoP proof became stale before nonce consumption",
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
+        if dpop_jti_store is not None and dpop_res.jti is not None and dpop_res.iat is not None:
+            try:
+                dpop_fresh = dpop_jti_store.consume(
+                    dpop_res.jti,
+                    dpop_res.iat + dpop.max_age_seconds + MAX_CLOCK_SKEW_SECONDS,
+                    post_now,
+                )
+            except Exception as exc:
+                return post_now, _unavailable(
+                    evaluated_at=post_now,
+                    detail=f"DPoP replay store backend error: {type(exc).__name__}",
+                    permit=permit,
+                )
+            if not dpop_fresh:
+                return post_now, _deny(
+                    RefusalCode.DPOP_PROOF_INVALID,
+                    evaluated_at=post_now,
+                    detail="DPoP jti replay detected",
+                    permit=permit,
+                    voice_verdict=voice_verdict,
+                )
+    return post_now, None
+
+
+def _run_webauthn_and_dpop_prechecks(
+    *,
+    permit: AgentPermitV2,
+    permit_jws: str,
+    policy: PolicyV2,
+    voice_verdict: VoiceLivenessVerdict | None,
+    webauthn_assertion: WebAuthnAssertionInput | None,
+    dpop: DpopVerificationInput | None,
+    now: int,
+) -> tuple[str | None, DpopVerificationResult | None, VerificationResult | None]:
+    """Run Steps 25..27 strictly before Step 28 SCITT."""
+    webauthn_res: WebAuthnVerificationResult | None = None
+    if webauthn_assertion is not None:
+        webauthn_res = verify_webauthn_assertion(
+            webauthn_assertion,
+            jti=permit.jti,
+            request_digest=permit.request_digest,
+            expected_assertion_digest=permit.webauthn_assertion_digest,
+        )
+    webauthn_digest, webauthn_err = _evaluate_webauthn_steps(
+        permit=permit,
+        policy=policy,
+        webauthn_result=webauthn_res,
+        now_seconds=now,
+        voice_verdict=voice_verdict,
+    )
+    if webauthn_err is not None:
+        return None, None, webauthn_err
+
+    dpop_ok, dpop_res = _run_dpop_precheck(
+        permit=permit,
+        permit_jws=permit_jws,
+        policy=policy,
+        dpop=dpop,
+        now_seconds=now,
+    )
+    dpop_err = _evaluate_dpop_step(
+        permit=permit,
+        policy=policy,
+        dpop_verified=dpop_ok,
+        now_seconds=now,
+        voice_verdict=voice_verdict,
+    )
+    if dpop_err is not None:
+        return None, None, dpop_err
+
+    return webauthn_digest, dpop_res, None
 
 
 def verify_agent_permit_v2(
@@ -775,17 +1091,25 @@ def verify_agent_permit_v2(
     jwks: JwksKeySource | Mapping[str, object],
     action: CanonicalAction | Mapping[str, object] | None = None,
     expected_request_digest: str | None = None,
-    now_seconds: int | None = None,
+    expected_session_id: str | None = None,
+    now_seconds: int | Callable[[], int] | None = None,
     voice_jwks: JwksKeySource | Mapping[str, object] | None = None,
     scitt_jwks: JwksKeySource | Mapping[str, object] | None = None,
     revoked_kids: set[str] | frozenset[str] | None = None,
     webauthn_assertion: WebAuthnAssertionInput | None = None,
     dpop: DpopVerificationInput | None = None,
+    dpop_jti_store: DpopJtiStore | None = None,
     nonce_store: PermitNonceStoreV2 | None = None,
     require_registered_nonce: bool = False,
 ) -> VerificationResult:
     """Synchronously verify an AgentPermit v2 compact JWS in strict 31-step order."""
-    now = int(time.time()) if now_seconds is None else now_seconds
+    now = _read_now_seconds(now_seconds)
+    if now is None:
+        return _deny(
+            RefusalCode.INVALID_PERMIT,
+            evaluated_at=0,
+            detail="Invalid verifier clock timestamp",
+        )
 
     # Steps 1 to 4 (header parsing).
     try:
@@ -822,38 +1146,34 @@ def verify_agent_permit_v2(
     if err is not None or permit is None:
         return err or _deny(RefusalCode.INVALID_PERMIT, evaluated_at=now)
 
-    # Resolve expected request_digest from live action (for step 12).
+    # Steps 8 to 18 before any remote voice/SCITT JWKS fetches or WebAuthn/DPoP crypto.
     digest_str, digest_err = _resolve_expected_digest(
         action=action,
         expected_request_digest=expected_request_digest,
     )
-    if digest_str is None:
-        # Still check steps 8..11 before reporting digest mismatch so order stays exact.
-        pre_digest_check = evaluate_policy_v2(
-            permit=permit,
-            policy=policy,
-            expected_audience=expected_audience,
-            expected_request_digest=permit.request_digest,
-            now_seconds=now,
-            voice_verdict=None,
-        )
-        if pre_digest_check.reason in (
-            RefusalCode.LIFETIME_EXCEEDED,
-            RefusalCode.CLOCK_SKEW_EXCEEDED,
-            RefusalCode.PERMIT_EXPIRED,
-            RefusalCode.AUDIENCE_MISMATCH,
-        ):
-            return pre_digest_check
-        return _deny(
-            RefusalCode.REQUEST_DIGEST_MISMATCH,
-            evaluated_at=now,
-            detail=digest_err or "Missing expected action or request_digest",
-            permit=permit,
-        )
+    pre_voice_err = _evaluate_pre_voice_steps(
+        permit=permit,
+        policy=policy,
+        expected_audience=expected_audience,
+        expected_request_digest=digest_str,
+        now_seconds=now,
+        expected_session_id=expected_session_id,
+        digest_err=digest_err,
+    )
+    if pre_voice_err is not None:
+        return pre_voice_err
 
-    # Verify embedded VoiceLivenessVerdict JWS when voice applies (for steps 16, 19..24).
+    # Steps 19 to 24: Verify embedded VoiceLivenessVerdict JWS & rules before WebAuthn/DPoP/SCITT.
+    voice_required = _requires_voice(permit, policy)
     voice_verdict: VoiceLivenessVerdict | None = None
-    if _requires_voice(permit, policy) and permit.voice_verdict_jws is not None:
+    if voice_required or permit.voice_verdict_jws is not None:
+        if permit.voice_verdict_jws is None:
+            return _deny(
+                RefusalCode.VOICE_VERDICT_INVALID,
+                evaluated_at=now,
+                detail="Permit missing required voice_verdict_jws",
+                permit=permit,
+            )
         v_source = as_jwks_source(voice_jwks or jwks, revoked_kids=revoked_kids)
         v_res = verify_voice_liveness_verdict(
             permit.voice_verdict_jws,
@@ -866,70 +1186,113 @@ def verify_agent_permit_v2(
                 detail=v_res.detail or "Voice JWKS unavailable",
                 permit=permit,
             )
-        if v_res.verdict is not None and (
-            v_res.ok or v_res.reason == RefusalCode.VOICE_RETENTION_VIOLATION
-        ):
-            voice_verdict = v_res.verdict
+        if not v_res.ok:
+            if v_res.reason == RefusalCode.VOICE_RETENTION_VIOLATION:
+                return _deny(
+                    RefusalCode.VOICE_RETENTION_VIOLATION,
+                    evaluated_at=now,
+                    detail=v_res.detail or "Voice verdict retention violation",
+                    permit=permit,
+                )
+            return _deny(
+                RefusalCode.VOICE_VERDICT_INVALID,
+                evaluated_at=now,
+                detail=v_res.detail or "Embedded voice verdict verification failed",
+                permit=permit,
+            )
+        voice_verdict = v_res.verdict
 
-    # Verify raw WebAuthn assertion if supplied (for steps 25..26).
-    webauthn_res: WebAuthnVerificationResult | None = None
-    if webauthn_assertion is not None:
-        webauthn_res = verify_webauthn_assertion(
-            webauthn_assertion,
-            jti=permit.jti,
-            request_digest=permit.request_digest,
-            expected_assertion_digest=permit.webauthn_assertion_digest,
-        )
+    voice_err = _evaluate_voice_binding_steps(
+        permit=permit,
+        policy=policy,
+        voice_verdict=voice_verdict,
+        now_seconds=now,
+    )
+    if voice_err is not None:
+        return voice_err
 
-    # Verify RFC 9449 DPoP proof if required or supplied (for step 27).
-    dpop_ok = _run_dpop_check(
+    # Steps 25 to 27: WebAuthn and DPoP prechecks strictly before Step 28 SCITT.
+    webauthn_digest, dpop_res, wd_err = _run_webauthn_and_dpop_prechecks(
         permit=permit,
         permit_jws=permit_jws,
         policy=policy,
+        voice_verdict=voice_verdict,
+        webauthn_assertion=webauthn_assertion,
         dpop=dpop,
-        now_seconds=now,
+        now=now,
     )
+    if wd_err is not None:
+        return wd_err
 
-    # Verify IETF SCITT receipt if required or present (for step 28).
+    # Step 28: Verify IETF SCITT receipt strictly when policy.require_scitt_receipt is True.
     scitt_res: ScittReceiptResult | None = None
-    scitt_failed = False
-    if permit.scitt_receipt is not None:
+    if policy.require_scitt_receipt:
+        if permit.scitt_receipt is None:
+            return _deny(
+                RefusalCode.SCITT_RECEIPT_INVALID,
+                evaluated_at=now,
+                detail="Policy requires an embedded IETF SCITT receipt",
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
         s_source = as_jwks_source(scitt_jwks or jwks, revoked_kids=revoked_kids)
         try:
-            scitt_res = verify_scitt_receipt(permit.scitt_receipt, jwks=s_source)
+            scitt_res = verify_scitt_receipt(
+                permit.scitt_receipt,
+                jwks=s_source,
+                expected_decision="allow",
+            )
         except JwksUnavailableError as exc:
             return _unavailable(evaluated_at=now, detail=str(exc), permit=permit)
-        except ScittVerificationError:
-            scitt_failed = True
+        except ScittVerificationError as exc:
+            return _deny(
+                RefusalCode.SCITT_RECEIPT_INVALID,
+                evaluated_at=now,
+                detail=str(exc),
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
 
-    precheck = evaluate_policy_v2(
+    verified_scitt, scitt_err = _evaluate_scitt_step(
         permit=permit,
         policy=policy,
-        expected_audience=expected_audience,
-        expected_request_digest=digest_str,
+        scitt_receipt=scitt_res,
+        require_scitt_verified=True,
         now_seconds=now,
         voice_verdict=voice_verdict,
-        webauthn_result=webauthn_res,
-        dpop_verified=dpop_ok,
-        scitt_receipt=scitt_res,
     )
-    if not precheck.ok:
-        return precheck
-    if scitt_failed:
-        return _deny(
-            RefusalCode.SCITT_RECEIPT_INVALID,
-            evaluated_at=now,
-            detail="Embedded SCITT receipt failed COSE_Sign1 or Merkle proof verification",
-            permit=permit,
-            voice_verdict=voice_verdict,
-        )
+    if scitt_err is not None:
+        return scitt_err
+
+    precheck = VerificationResult(
+        ok=True,
+        decision="allow",
+        reason=None,
+        permit=permit,
+        voice_verdict=voice_verdict,
+        scitt_receipt=verified_scitt,
+        webauthn_assertion_digest=webauthn_digest,
+        evaluated_at=now,
+    )
+
+    post_now, post_err = _finalize_post_precheck_checks(
+        permit=permit,
+        policy=policy,
+        voice_verdict=voice_verdict,
+        dpop=dpop,
+        dpop_res=dpop_res,
+        dpop_jti_store=dpop_jti_store,
+        now_seconds=now_seconds,
+    )
+    if post_err is not None:
+        return post_err
 
     # Steps 29 to 30: Strictly post-precheck atomic jti consumption.
     if nonce_store is not None:
         try:
             outcome = nonce_store.consume_once(
                 jti=permit.jti,
-                now_seconds=now,
+                now_seconds=post_now,
                 expires_at=permit.exp,
                 require_registered=require_registered_nonce,
                 request_digest=permit.request_digest,
@@ -942,16 +1305,16 @@ def verify_agent_permit_v2(
                     "Async PermitNonceStoreV2 requires verify_agent_permit_v2_async",
                 )
         except NonceStoreError as exc:
-            return _unavailable(evaluated_at=now, detail=str(exc), permit=permit)
+            return _unavailable(evaluated_at=post_now, detail=str(exc), permit=permit)
         except Exception as exc:
             return _unavailable(
-                evaluated_at=now,
+                evaluated_at=post_now,
                 detail=f"Nonce store backend error: {type(exc).__name__}",
                 permit=permit,
             )
-        return _apply_nonce_outcome(outcome, precheck=precheck, evaluated_at=now)
+        return _apply_nonce_outcome(outcome, precheck=precheck, evaluated_at=post_now)
 
-    return precheck
+    return precheck.model_copy(update={"evaluated_at": post_now}) if post_now != now else precheck
 
 
 async def verify_agent_permit_v2_async(
@@ -962,17 +1325,25 @@ async def verify_agent_permit_v2_async(
     jwks: JwksKeySource | Mapping[str, object],
     action: CanonicalAction | Mapping[str, object] | None = None,
     expected_request_digest: str | None = None,
-    now_seconds: int | None = None,
+    expected_session_id: str | None = None,
+    now_seconds: int | Callable[[], int] | None = None,
     voice_jwks: JwksKeySource | Mapping[str, object] | None = None,
     scitt_jwks: JwksKeySource | Mapping[str, object] | None = None,
     revoked_kids: set[str] | frozenset[str] | None = None,
     webauthn_assertion: WebAuthnAssertionInput | None = None,
     dpop: DpopVerificationInput | None = None,
+    dpop_jti_store: DpopJtiStore | None = None,
     nonce_store: PermitNonceStoreV2 | None = None,
     require_registered_nonce: bool = False,
 ) -> VerificationResult:
     """Asynchronously verify an AgentPermit v2 compact JWS in strict 31-step order."""
-    now = int(time.time()) if now_seconds is None else now_seconds
+    now = _read_now_seconds(now_seconds)
+    if now is None:
+        return _deny(
+            RefusalCode.INVALID_PERMIT,
+            evaluated_at=0,
+            detail="Invalid verifier clock timestamp",
+        )
 
     try:
         parsed = parse_and_validate_jws_header(permit_jws, expected_typ=AGENT_PERMIT_TYP)
@@ -1005,35 +1376,34 @@ async def verify_agent_permit_v2_async(
     if err is not None or permit is None:
         return err or _deny(RefusalCode.INVALID_PERMIT, evaluated_at=now)
 
+    # Steps 8 to 18 before any remote voice/SCITT JWKS fetches or WebAuthn/DPoP crypto.
     digest_str, digest_err = _resolve_expected_digest(
         action=action,
         expected_request_digest=expected_request_digest,
     )
-    if digest_str is None:
-        pre_digest_check = evaluate_policy_v2(
-            permit=permit,
-            policy=policy,
-            expected_audience=expected_audience,
-            expected_request_digest=permit.request_digest,
-            now_seconds=now,
-            voice_verdict=None,
-        )
-        if pre_digest_check.reason in (
-            RefusalCode.LIFETIME_EXCEEDED,
-            RefusalCode.CLOCK_SKEW_EXCEEDED,
-            RefusalCode.PERMIT_EXPIRED,
-            RefusalCode.AUDIENCE_MISMATCH,
-        ):
-            return pre_digest_check
-        return _deny(
-            RefusalCode.REQUEST_DIGEST_MISMATCH,
-            evaluated_at=now,
-            detail=digest_err or "Missing expected action or request_digest",
-            permit=permit,
-        )
+    pre_voice_err = _evaluate_pre_voice_steps(
+        permit=permit,
+        policy=policy,
+        expected_audience=expected_audience,
+        expected_request_digest=digest_str,
+        now_seconds=now,
+        expected_session_id=expected_session_id,
+        digest_err=digest_err,
+    )
+    if pre_voice_err is not None:
+        return pre_voice_err
 
+    # Steps 19 to 24: Verify embedded VoiceLivenessVerdict JWS & rules before WebAuthn/DPoP/SCITT.
+    voice_required = _requires_voice(permit, policy)
     voice_verdict: VoiceLivenessVerdict | None = None
-    if _requires_voice(permit, policy) and permit.voice_verdict_jws is not None:
+    if voice_required or permit.voice_verdict_jws is not None:
+        if permit.voice_verdict_jws is None:
+            return _deny(
+                RefusalCode.VOICE_VERDICT_INVALID,
+                evaluated_at=now,
+                detail="Permit missing required voice_verdict_jws",
+                permit=permit,
+            )
         v_source = as_jwks_source(voice_jwks or jwks, revoked_kids=revoked_kids)
         v_res = await verify_voice_liveness_verdict_async(
             permit.voice_verdict_jws,
@@ -1046,66 +1416,113 @@ async def verify_agent_permit_v2_async(
                 detail=v_res.detail or "Voice JWKS unavailable",
                 permit=permit,
             )
-        if v_res.verdict is not None and (
-            v_res.ok or v_res.reason == RefusalCode.VOICE_RETENTION_VIOLATION
-        ):
-            voice_verdict = v_res.verdict
+        if not v_res.ok:
+            if v_res.reason == RefusalCode.VOICE_RETENTION_VIOLATION:
+                return _deny(
+                    RefusalCode.VOICE_RETENTION_VIOLATION,
+                    evaluated_at=now,
+                    detail=v_res.detail or "Voice verdict retention violation",
+                    permit=permit,
+                )
+            return _deny(
+                RefusalCode.VOICE_VERDICT_INVALID,
+                evaluated_at=now,
+                detail=v_res.detail or "Embedded voice verdict verification failed",
+                permit=permit,
+            )
+        voice_verdict = v_res.verdict
 
-    webauthn_res: WebAuthnVerificationResult | None = None
-    if webauthn_assertion is not None:
-        webauthn_res = verify_webauthn_assertion(
-            webauthn_assertion,
-            jti=permit.jti,
-            request_digest=permit.request_digest,
-            expected_assertion_digest=permit.webauthn_assertion_digest,
-        )
+    voice_err = _evaluate_voice_binding_steps(
+        permit=permit,
+        policy=policy,
+        voice_verdict=voice_verdict,
+        now_seconds=now,
+    )
+    if voice_err is not None:
+        return voice_err
 
-    dpop_ok = _run_dpop_check(
+    # Steps 25 to 27: WebAuthn and DPoP prechecks strictly before Step 28 SCITT.
+    webauthn_digest, dpop_res, wd_err = _run_webauthn_and_dpop_prechecks(
         permit=permit,
         permit_jws=permit_jws,
         policy=policy,
+        voice_verdict=voice_verdict,
+        webauthn_assertion=webauthn_assertion,
         dpop=dpop,
-        now_seconds=now,
+        now=now,
     )
+    if wd_err is not None:
+        return wd_err
 
+    # Step 28: Verify IETF SCITT receipt strictly when policy.require_scitt_receipt is True.
     scitt_res: ScittReceiptResult | None = None
-    scitt_failed = False
-    if permit.scitt_receipt is not None:
+    if policy.require_scitt_receipt:
+        if permit.scitt_receipt is None:
+            return _deny(
+                RefusalCode.SCITT_RECEIPT_INVALID,
+                evaluated_at=now,
+                detail="Policy requires an embedded IETF SCITT receipt",
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
         s_source = as_jwks_source(scitt_jwks or jwks, revoked_kids=revoked_kids)
         try:
-            scitt_res = await verify_scitt_receipt_async(permit.scitt_receipt, jwks=s_source)
+            scitt_res = await verify_scitt_receipt_async(
+                permit.scitt_receipt,
+                jwks=s_source,
+                expected_decision="allow",
+            )
         except JwksUnavailableError as exc:
             return _unavailable(evaluated_at=now, detail=str(exc), permit=permit)
-        except ScittVerificationError:
-            scitt_failed = True
+        except ScittVerificationError as exc:
+            return _deny(
+                RefusalCode.SCITT_RECEIPT_INVALID,
+                evaluated_at=now,
+                detail=str(exc),
+                permit=permit,
+                voice_verdict=voice_verdict,
+            )
 
-    precheck = evaluate_policy_v2(
+    verified_scitt, scitt_err = _evaluate_scitt_step(
         permit=permit,
         policy=policy,
-        expected_audience=expected_audience,
-        expected_request_digest=digest_str,
+        scitt_receipt=scitt_res,
+        require_scitt_verified=True,
         now_seconds=now,
         voice_verdict=voice_verdict,
-        webauthn_result=webauthn_res,
-        dpop_verified=dpop_ok,
-        scitt_receipt=scitt_res,
     )
-    if not precheck.ok:
-        return precheck
-    if scitt_failed:
-        return _deny(
-            RefusalCode.SCITT_RECEIPT_INVALID,
-            evaluated_at=now,
-            detail="Embedded SCITT receipt failed COSE_Sign1 or Merkle proof verification",
-            permit=permit,
-            voice_verdict=voice_verdict,
-        )
+    if scitt_err is not None:
+        return scitt_err
+
+    precheck = VerificationResult(
+        ok=True,
+        decision="allow",
+        reason=None,
+        permit=permit,
+        voice_verdict=voice_verdict,
+        scitt_receipt=verified_scitt,
+        webauthn_assertion_digest=webauthn_digest,
+        evaluated_at=now,
+    )
+
+    # Resample clock after async JWKS fetches before DPoP/nonce consumption.
+    post_now, post_err = _finalize_post_precheck_checks(
+        permit=permit,
+        policy=policy,
+        voice_verdict=voice_verdict,
+        dpop=dpop,
+        dpop_res=dpop_res,
+        dpop_jti_store=dpop_jti_store,
+        now_seconds=now_seconds,
+    )
+    if post_err is not None:
+        return post_err
 
     if nonce_store is not None:
         try:
             maybe_outcome = nonce_store.consume_once(
                 jti=permit.jti,
-                now_seconds=now,
+                now_seconds=post_now,
                 expires_at=permit.exp,
                 require_registered=require_registered_nonce,
                 request_digest=permit.request_digest,
@@ -1118,13 +1535,13 @@ async def verify_agent_permit_v2_async(
             else:
                 outcome = maybe_outcome
         except NonceStoreError as exc:
-            return _unavailable(evaluated_at=now, detail=str(exc), permit=permit)
+            return _unavailable(evaluated_at=post_now, detail=str(exc), permit=permit)
         except Exception as exc:
             return _unavailable(
-                evaluated_at=now,
+                evaluated_at=post_now,
                 detail=f"Nonce store backend error: {type(exc).__name__}",
                 permit=permit,
             )
-        return _apply_nonce_outcome(outcome, precheck=precheck, evaluated_at=now)
+        return _apply_nonce_outcome(outcome, precheck=precheck, evaluated_at=post_now)
 
-    return precheck
+    return precheck.model_copy(update={"evaluated_at": post_now}) if post_now != now else precheck

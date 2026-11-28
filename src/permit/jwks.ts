@@ -18,6 +18,8 @@ import {
   type JwksSource,
 } from "./types";
 
+const MAX_NEGATIVE_CACHE_ENTRIES = 4_096;
+
 interface ParsedJwksEntry {
   kid: string;
   publicKey: Uint8Array;
@@ -62,10 +64,12 @@ function parseJwksDocument(doc: unknown): Map<string, ParsedJwksEntry> {
     if (typeof item.x !== "string") continue;
     const rawKey = base64UrlDecodeStrict(item.x);
     if (!rawKey || rawKey.length !== 32) continue;
+    const existing = entries.get(item.kid);
+    const revoked = item.status === "revoked" || existing?.revoked === true;
     entries.set(item.kid, {
       kid: item.kid,
       publicKey: rawKey,
-      revoked: item.status === "revoked",
+      revoked,
     });
   }
   return entries;
@@ -186,8 +190,12 @@ export class JwksCache implements JwksResolver {
           throw new Error(`JWKS HTTP ${response.status}`);
         }
         const json: unknown = await response.json();
-        this.#entries = parseJwksDocument(json);
-        this.#fetchedAt = now;
+        const parsed = parseJwksDocument(json);
+        this.#entries = parsed;
+        this.#fetchedAt = this.#nowSeconds();
+        for (const loadedKid of parsed.keys()) {
+          this.#unknownNegativeCache.delete(loadedKid);
+        }
       } finally {
         clearTimeout(timer);
       }
@@ -201,6 +209,26 @@ export class JwksCache implements JwksResolver {
     }
   }
 
+  #recordNegativeCache(kid: string, now: number): void {
+    // Insertion order matches recording time, so stop at the first live entry.
+    for (const [cachedKid, recordedAt] of this.#unknownNegativeCache) {
+      if (now - recordedAt >= this.#negativeCacheSeconds) {
+        this.#unknownNegativeCache.delete(cachedKid);
+      } else {
+        break;
+      }
+    }
+    if (this.#unknownNegativeCache.has(kid)) {
+      this.#unknownNegativeCache.delete(kid);
+    } else if (this.#unknownNegativeCache.size >= MAX_NEGATIVE_CACHE_ENTRIES) {
+      const oldest = this.#unknownNegativeCache.keys().next().value;
+      if (oldest !== undefined) {
+        this.#unknownNegativeCache.delete(oldest);
+      }
+    }
+    this.#unknownNegativeCache.set(kid, now);
+  }
+
   async resolveEd25519Key(kid: string): Promise<JwkLookupResult> {
     if (typeof kid !== "string" || kid.trim().length === 0) {
       return { status: "unknown", kid: "" };
@@ -212,10 +240,12 @@ export class JwksCache implements JwksResolver {
     const now = this.#nowSeconds();
     const cacheExpired =
       this.#entries === null || now - this.#fetchedAt >= this.#ttlSeconds;
+    let didRefresh = false;
 
     if (cacheExpired) {
       try {
         await this.#refresh(now);
+        didRefresh = true;
       } catch (error) {
         return {
           status: "unavailable",
@@ -226,15 +256,21 @@ export class JwksCache implements JwksResolver {
 
     let entry = this.#entries?.get(kid);
     if (!entry) {
-      const lastNeg = this.#unknownNegativeCache.get(kid) ?? 0;
+      const lastNeg = this.#unknownNegativeCache.get(kid);
+      const negExpired =
+        lastNeg === undefined || now - lastNeg >= this.#negativeCacheSeconds;
+      if (lastNeg !== undefined && negExpired) {
+        this.#unknownNegativeCache.delete(kid);
+      }
       const canRefresh =
-        !cacheExpired &&
-        now - lastNeg >= this.#negativeCacheSeconds &&
+        !didRefresh &&
+        negExpired &&
         now - this.#lastRefreshAttemptAt >= this.#negativeCacheSeconds;
 
       if (canRefresh) {
         try {
           await this.#refresh(now);
+          didRefresh = true;
         } catch (error) {
           return {
             status: "unavailable",
@@ -245,7 +281,9 @@ export class JwksCache implements JwksResolver {
         entry = this.#entries?.get(kid);
       }
       if (!entry) {
-        this.#unknownNegativeCache.set(kid, now);
+        if (didRefresh) {
+          this.#recordNegativeCache(kid, this.#nowSeconds());
+        }
         return { status: "unknown", kid };
       }
     }
